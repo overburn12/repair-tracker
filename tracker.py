@@ -1,49 +1,161 @@
-
-class RepairOrder:
-    def __init__(self):
-        self.key = None
-        self.name = None
-        self.status = None
-        self.created = None
-        self.recieved = None
-        self.machines = []
-        self.hashboards = []
-
-    def load(self, json):
-        pass
-    
-
-class Machine:
-    def __init__(self):
-        self.key = None
-        self.serial = None
-        self.events = []
-
-    def load(self, json):
-        pass
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import List
+import json
 
 
-class Hashboard:
-    def __init__(self):
-        self.key = None
-        self.serial = None
-        self.events = []
+#-------------------------------------------------------
+# Events
+#-------------------------------------------------------
 
-    def load(self, json):
-        pass
-
-
+@dataclass
 class Event:
-    def __init__(self):
-        self.type = None
-        self.assignee = None
-        self.timestamp = None
+    assignee: str
+    timestamp: datetime
 
-        self.comment = None
-        self.status = None
-        self.components = None
+    def to_dict(self):
+        return{
+            "assignee": self.assignee,
+            "timestamp": self.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+    @classmethod
+    def from_json(cls, json_data):
+        """Create an Event instance from JSON data"""
+        if isinstance(json_data, str):
+            data = json.loads(json_data)
+        else:
+            data = json_data
+        
+        return cls(
+            assignee=data["assignee"],
+            timestamp=datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S")
+        )
 
 
-    def load(self, json):
-        pass
+@dataclass
+class Status(Event):
+    type: str = 'status'
+    status: str
 
+    def to_dict(self):
+        data = super().to_dict()
+        data['type'] = self.type
+        data['status'] = self.status
+        return data
+
+    @classmethod
+    def from_json(cls, json_data):
+        """Create a Status instance from JSON data"""
+        if isinstance(json_data, str):
+            data = json.loads(json_data)
+        else:
+            data = json_data
+        
+        # Create base Event first
+        event = Event.from_json(data)
+        
+        return cls(
+            assignee=event.assignee,
+            timestamp=event.timestamp,
+            status=data["status"]
+        )
+
+
+@dataclass
+class Comment(Event):
+    type: str = "comment"
+    comment: str
+
+    def to_dict(self):
+        data = super().to_dict()
+        data['type'] = self.type
+        data['comment'] = self.comment
+        return data
+
+    @classmethod
+    def from_json(cls, json_data):
+        """Create a Comment instance from JSON data"""
+        if isinstance(json_data, str):
+            data = json.loads(json_data)
+        else:
+            data = json_data
+        
+        # Create base Event first
+        event = Event.from_json(data)
+        
+        return cls(
+            assignee=event.assignee,
+            timestamp=event.timestamp,
+            comment=data["comment"]
+        )
+
+
+@dataclass
+class Repair(Event):
+    type: str = "repair"
+    components: List[str] = field(default_factory=list)
+
+    def to_dict(self):
+        data = super().to_dict()
+        data['type'] = self.type
+        data['components'] = self.components
+        return data
+
+    @classmethod
+    def from_json(cls, json_data):
+        """Create a Repair instance from JSON data"""
+        if isinstance(json_data, str):
+            data = json.loads(json_data)
+        else:
+            data = json_data
+        
+        # Create base Event first
+        event = Event.from_json(data)
+        
+        return cls(
+            assignee=event.assignee,
+            timestamp=event.timestamp,
+            components=data.get("components", [])
+        )
+
+
+#-------------------------------------------------------
+# Units
+#-------------------------------------------------------
+
+@dataclass
+class RepairUnit:
+    key: str
+    serial: str
+    events: List[Event] = field(default_factory=list)
+
+    def to_dict(self):
+        return {
+            "key": self.key,
+            "serial": self.serial,
+            "events": [e.to_dict() for e in self.events]
+        }
+
+
+@dataclass
+class RepairOrder:
+    key: str
+    name: str
+    status: str
+    created: datetime
+    recieved: datetime
+    machines: List[RepairUnit] = field(default_factory=list)
+    hashboards: List[RepairUnit] = field(default_factory=list)
+
+    def to_dict(self):
+        return {
+           "key": self.key,
+           "name": self.name,
+           "status": self.status,
+           "created": self.created.strftime("%Y-%m-%d"),
+           "recieved": self.recieved.strftime("%Y-%m-%d"),
+           "machines": [m.to_dict() for m in self.machines],
+           "hashboards": [h.to_dict() for h in self.hashboards]                                   
+        }
+    
