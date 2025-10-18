@@ -158,4 +158,3 @@ class RepairOrder:
            "machines": [m.to_dict() for m in self.machines],
            "hashboards": [h.to_dict() for h in self.hashboards]                                   
         }
-    
