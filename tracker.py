@@ -136,6 +136,29 @@ class RepairUnit:
             "serial": self.serial,
             "events": [e.to_dict() for e in self.events]
         }
+    
+    @classmethod
+    def from_json(cls, json_data):
+        if isinstance(json_data, str):
+            data = json.loads(json_data)
+        else:
+            data = json_data
+        
+        events = []
+        for event_dict in data.get("events", []):
+            event_type = event_dict.get("type")
+            if event_type == "status":
+                events.append(Status.from_json(event_dict))
+            elif event_type == "comment":
+                events.append(Comment.from_json(event_dict))
+            elif event_type == "repair":
+                events.append(Repair.from_json(event_dict))
+
+        return cls(
+            key=data["key"],
+            serial=data["serial"],
+            events=events
+        )
 
 
 @dataclass
@@ -158,3 +181,23 @@ class RepairOrder:
            "machines": [m.to_dict() for m in self.machines],
            "hashboards": [h.to_dict() for h in self.hashboards]                                   
         }
+    
+    @classmethod
+    def from_json(cls, json_data):
+        if isinstance(json_data, str):
+            data = json.loads(json_data)
+        else:
+            data = json_data
+
+        machines = [RepairUnit.from_json(unit) for unit in data.get("machines", [])]
+        hashboards = [RepairUnit.from_json(unit) for unit in data.get("hashboards", [])]
+
+        return cls(
+            key=data["key"],
+            name=data["name"],
+            status=data["status"],
+            created=datetime.strptime(data["created"], "%Y-%m-%d"),
+            recieved=datetime.strptime(data["recieved"], "%Y-%m-%d"),
+            machines=machines,
+            hashboards=hashboards
+        )
