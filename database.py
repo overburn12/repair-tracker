@@ -45,7 +45,7 @@ class RepairUnit(Base):
     serial = Column(String(100), nullable=True)
     created = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-   
+
     type = Column(SQLEnum(UnitType), nullable=False)
     current_status_id = Column(Integer, ForeignKey('statuses.id'), nullable=False)
     current_assignee_id = Column(Integer, ForeignKey('assignees.id'), nullable=True)
