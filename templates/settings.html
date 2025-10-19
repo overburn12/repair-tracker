@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+
+{% block title %}Update Settings{% endblock %}
+
+{% block head %}
+<style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        background-color: #2a2a2a;
+    }
+
+    th, td {
+        padding: 12px;
+        text-align: left;
+        border: 1px solid #404040;
+    }
+
+    th {
+        background-color: #353535;
+        color: #bb86fc;
+        font-weight: bold;
+    }
+
+    tr:hover {
+        background-color: #333333;
+    }
+
+    .search-box {
+        margin: 15px 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .search-box input {
+        padding: 10px;
+        background-color: #353535;
+        border: 1px solid #404040;
+        border-radius: 5px;
+        color: #e0e0e0;
+        font-size: 14px;
+        flex: 1;
+        max-width: 300px;
+    }
+
+    .search-box button {
+        padding: 10px 20px;
+        background-color: #bb86fc;
+        color: #1a1a1a;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+    }
+
+    .search-box button:hover {
+        background-color: #9965d4;
+    }
+
+    .error-message {
+        color: #ff6b6b;
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #2a2a2a;
+        border: 1px solid #ff6b6b;
+        border-radius: 5px;
+    }
+
+    .loading {
+        color: #bb86fc;
+        font-style: italic;
+    }
+
+    .delete-btn {
+        background: none;
+        border: none;
+        color: #ff6b6b;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 5px;
+        transition: color 0.3s ease;
+    }
+
+    .delete-btn:hover {
+        color: #ff4444;
+    }
+
+    .edit-btn {
+        background: none;
+        border: none;
+        color: #bb86fc;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 5px;
+        transition: color 0.3s ease;
+        margin-right: 5px;
+    }
+
+    .edit-btn:hover {
+        color: #9965d4;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{{ block_header("Status Table") }}
+    <div id="statuses-loading" class="loading">Loading statuses...</div>
+    <div id="statuses-error" class="error-message" style="display: none;"></div>
+    <table id="statuses-table" style="display: none;">
+        <thead>
+            <tr>
+                <th>Key</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="statuses-tbody">
+        </tbody>
+    </table>
+    <div class="search-box">
+        <input type="text" id="new-status-input" placeholder="Enter new status name">
+        <button onclick="addStatus()">Add</button>
+    </div>
+{{ block_footer() }}
+
+{{ block_header("Assignee Table") }}
+    <div id="assignees-loading" class="loading">Loading assignees...</div>
+    <div id="assignees-error" class="error-message" style="display: none;"></div>
+    <table id="assignees-table" style="display: none;">
+        <thead>
+            <tr>
+                <th>Key</th>
+                <th>Name</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="assignees-tbody">
+        </tbody>
+    </table>
+    <div class="search-box">
+        <input type="text" id="new-assignee-input" placeholder="Enter new assignee name">
+        <button onclick="addAssignee()">Add</button>
+    </div>
+{{ block_footer() }}
+
+{% endblock %}
+
+{% block script %}
+<script>
+    // Load statuses on page load
+    async function loadStatuses() {
+        try {
+            const response = await fetch('/api/statuses');
+            if (!response.ok) throw new Error('Failed to load statuses');
+
+            const statuses = await response.json();
+            const tbody = document.getElementById('statuses-tbody');
+
+            tbody.innerHTML = '';
+            statuses.forEach(status => {
+                const row = tbody.insertRow();
+                row.insertCell(0).textContent = status.key;
+                row.insertCell(1).textContent = status.status;
+
+                const actionsCell = row.insertCell(2);
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn';
+                editBtn.innerHTML = '✏️';
+                editBtn.title = 'Edit status';
+                editBtn.onclick = () => editStatus(status.key, status.status);
+                actionsCell.appendChild(editBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.innerHTML = '🗑️';
+                deleteBtn.title = 'Delete status';
+                deleteBtn.onclick = () => deleteStatus(status.key);
+                actionsCell.appendChild(deleteBtn);
+            });
+
+            document.getElementById('statuses-loading').style.display = 'none';
+            document.getElementById('statuses-table').style.display = 'table';
+        } catch (error) {
+            document.getElementById('statuses-loading').style.display = 'none';
+            const errorDiv = document.getElementById('statuses-error');
+            errorDiv.textContent = 'Error loading statuses: ' + error.message;
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    // Load assignees on page load
+    async function loadAssignees() {
+        try {
+            const response = await fetch('/api/assignees');
+            if (!response.ok) throw new Error('Failed to load assignees');
+
+            const assignees = await response.json();
+            const tbody = document.getElementById('assignees-tbody');
+
+            tbody.innerHTML = '';
+            assignees.forEach(assignee => {
+                const row = tbody.insertRow();
+                row.insertCell(0).textContent = assignee.key;
+                row.insertCell(1).textContent = assignee.name;
+
+                const actionsCell = row.insertCell(2);
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn';
+                editBtn.innerHTML = '✏️';
+                editBtn.title = 'Edit assignee';
+                editBtn.onclick = () => editAssignee(assignee.key, assignee.name);
+                actionsCell.appendChild(editBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.innerHTML = '🗑️';
+                deleteBtn.title = 'Delete assignee';
+                deleteBtn.onclick = () => deleteAssignee(assignee.key);
+                actionsCell.appendChild(deleteBtn);
+            });
+
+            document.getElementById('assignees-loading').style.display = 'none';
+            document.getElementById('assignees-table').style.display = 'table';
+        } catch (error) {
+            document.getElementById('assignees-loading').style.display = 'none';
+            const errorDiv = document.getElementById('assignees-error');
+            errorDiv.textContent = 'Error loading assignees: ' + error.message;
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    // Add new status
+    async function addStatus() {
+        const statusInput = document.getElementById('new-status-input');
+        const statusName = statusInput.value.trim();
+
+        if (!statusName) {
+            alert('Please enter a status name');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/add-status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status: statusName })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Clear input and reload page
+                statusInput.value = '';
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error adding status: ' + error.message);
+        }
+    }
+
+    // Add new assignee
+    async function addAssignee() {
+        const assigneeInput = document.getElementById('new-assignee-input');
+        const assigneeName = assigneeInput.value.trim();
+
+        if (!assigneeName) {
+            alert('Please enter an assignee name');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/add-assignee', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: assigneeName })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Clear input and reload page
+                assigneeInput.value = '';
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error adding assignee: ' + error.message);
+        }
+    }
+
+    // Edit status
+    async function editStatus(statusKey, currentName) {
+        const newName = prompt(`Edit status name:`, currentName);
+
+        if (newName === null) {
+            // User clicked cancel
+            return;
+        }
+
+        if (!newName.trim()) {
+            alert('Status name cannot be empty');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/update-status/${statusKey}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status: newName.trim() })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error updating status: ' + error.message);
+        }
+    }
+
+    // Delete status
+    async function deleteStatus(statusKey) {
+        if (!confirm(`Are you sure you want to delete status ${statusKey}?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/delete-status/${statusKey}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error deleting status: ' + error.message);
+        }
+    }
+
+    // Edit assignee
+    async function editAssignee(assigneeKey, currentName) {
+        const newName = prompt(`Edit assignee name:`, currentName);
+
+        if (newName === null) {
+            // User clicked cancel
+            return;
+        }
+
+        if (!newName.trim()) {
+            alert('Assignee name cannot be empty');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/update-assignee/${assigneeKey}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: newName.trim() })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error updating assignee: ' + error.message);
+        }
+    }
+
+    // Delete assignee
+    async function deleteAssignee(assigneeKey) {
+        if (!confirm(`Are you sure you want to delete assignee ${assigneeKey}?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/delete-assignee/${assigneeKey}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error deleting assignee: ' + error.message);
+        }
+    }
+
+    // Load data when page loads
+    window.addEventListener('DOMContentLoaded', () => {
+        loadStatuses();
+        loadAssignees();
+    });
+</script>
+{% endblock %}
