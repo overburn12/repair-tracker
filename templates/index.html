@@ -1,11 +1,53 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hello World</title>
-</head>
-<body>
-    <h1>Hello World</h1>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %} Order Summaries {% endblock %}
+
+{% block head %}
+    <style>
+        .element-block{
+            width: 90%;
+            height: 90%;
+        }
+        #summary-container{
+            padding: 0px;
+        }
+        #search-container {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        #search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        #search-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+        }
+        .search-info {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #6c757d;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    {{ block_header('Order Summaries') }}
+        <div id="search-container">
+            <input type="text" id="search-input" placeholder="Search orders... (e.g. 'tera', 'lambda', order number, etc.)" />
+            <div class="search-info" id="search-info">Loading orders...</div>
+        </div>
+        <div id="summary-container">
+        </div>
+    {{ block_footer() }}
+{% endblock %}
+
+{% block script %}
+    <script></script>
+{% endblock %}

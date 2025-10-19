@@ -8,10 +8,16 @@ app = Flask(__name__)
 # Pages
 # ------------------------------------------------------------------
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
     """Render the main index page."""
     return render_template('index.html')
+
+
+@app.route('/order', methods=['GET'])
+def order():
+    """Render the order page."""
+    return render_template('order.html')
 
 
 # ------------------------------------------------------------------
