@@ -637,13 +637,15 @@
                     const row = tbody.insertRow();
 
                     // Create clickable link for unit key
-                    const keyCell = row.insertCell(0);
+                    row.insertCell(0).textContent = unit.key;
+                    
+                    const serialCell = row.insertCell(1);
                     const keyLink = document.createElement('a');
                     keyLink.href = `/repair?key=${unit.key}`;
-                    keyLink.textContent = unit.key;
-                    keyCell.appendChild(keyLink);
+                    keyLink.textContent = unit.serial;
+                    serialCell.appendChild(keyLink);
 
-                    row.insertCell(1).textContent = unit.serial || '-';
+
                     row.insertCell(2).textContent = unit.type || '-';
                     row.insertCell(3).textContent = unit.current_status || '-';
                     row.insertCell(4).textContent = unit.current_assignee || '-';
