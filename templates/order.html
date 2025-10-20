@@ -1,0 +1,709 @@
+{% extends "base.html" %}
+
+{% block title %}Order Details{% endblock %}
+
+{% block head %}
+<style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        background-color: #2a2a2a;
+    }
+
+    th, td {
+        padding: 12px;
+        text-align: left;
+        border: 1px solid #404040;
+    }
+
+    th {
+        background-color: #353535;
+        color: #bb86fc;
+        font-weight: bold;
+    }
+
+    tr:hover {
+        background-color: #333333;
+    }
+
+    .error-message {
+        color: #ff6b6b;
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #2a2a2a;
+        border: 1px solid #ff6b6b;
+        border-radius: 5px;
+    }
+
+    .loading {
+        color: #bb86fc;
+        font-style: italic;
+    }
+
+    .metadata {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .metadata-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .metadata-label {
+        color: #bb86fc;
+        font-weight: bold;
+        font-size: 12px;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+
+    .metadata-value {
+        color: #e0e0e0;
+        font-size: 16px;
+    }
+
+    .metadata-select, .metadata-input {
+        padding: 10px;
+        background-color: #353535;
+        border: 1px solid #404040;
+        border-radius: 5px;
+        color: #e0e0e0;
+        font-size: 14px;
+    }
+
+    .metadata-select:focus, .metadata-input:focus {
+        outline: none;
+        border-color: #bb86fc;
+    }
+
+    .metadata-input:read-only {
+        background-color: #2a2a2a;
+        cursor: not-allowed;
+    }
+
+    .metadata-textarea {
+        width: 100%;
+        padding: 10px;
+        background-color: #353535;
+        border: 1px solid #404040;
+        border-radius: 5px;
+        color: #e0e0e0;
+        font-size: 14px;
+        font-family: Arial, sans-serif;
+        resize: vertical;
+        overflow: auto;
+        min-height: 60px;
+        max-height: 400px;
+        box-sizing: border-box;
+        transition: box-shadow 0.3s ease, border-color 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .metadata-textarea:focus {
+        outline: none;
+        border-color: #bb86fc;
+    }
+
+    .metadata-textarea.updating {
+        box-shadow: 0 0 10px rgba(187, 134, 252, 0.4);
+        border-color: #bb86fc;
+    }
+
+    .delete-order-btn {
+        background: none;
+        border: none;
+        color: #ff6b6b;
+        cursor: pointer;
+        font-size: 16px;
+        padding: 10px;
+        transition: color 0.3s ease;
+        float: right;
+    }
+
+    .delete-order-btn:hover {
+        color: #ff4444;
+    }
+
+    .clear-date-btn {
+        background: none;
+        border: none;
+        color: #ff6b6b;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 5px;
+        margin-left: 5px;
+        transition: color 0.3s ease;
+    }
+
+    .clear-date-btn:hover {
+        color: #ff4444;
+    }
+
+    .date-input-container {
+        display: flex;
+        align-items: center;
+    }
+
+    .add-unit-container {
+        margin-top: 20px;
+        padding: 15px;
+        background-color: #2a2a2a;
+        border: 1px solid #404040;
+        border-radius: 5px;
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .add-unit-input {
+        padding: 10px;
+        background-color: #353535;
+        border: 1px solid #404040;
+        border-radius: 5px;
+        color: #e0e0e0;
+        font-size: 14px;
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .add-unit-input:focus {
+        outline: none;
+        border-color: #bb86fc;
+    }
+
+    .add-unit-radio-group {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .add-unit-radio-label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: #e0e0e0;
+        cursor: pointer;
+    }
+
+    .add-unit-radio-label input[type="radio"] {
+        cursor: pointer;
+    }
+
+    .add-unit-btn {
+        padding: 10px 20px;
+        background-color: #bb86fc;
+        color: #1a1a1a;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+    }
+
+    .add-unit-btn:hover {
+        background-color: #9965d4;
+    }
+
+    .delete-unit-btn {
+        background: none;
+        border: none;
+        color: #ff6b6b;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 5px;
+        transition: color 0.3s ease;
+    }
+
+    .delete-unit-btn:hover {
+        color: #ff4444;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="element-block">
+    <div id="order-name-title">
+    </div>
+    <div>
+        <button class="delete-order-btn" onclick="deleteRepairOrder()" title="Delete this repair order" style="display: none;" id="delete-order-btn">🗑️</button>
+    </div>
+    <div id="metadata-loading" class="loading">Loading order details...</div>
+    <div id="metadata-error" class="error-message" style="display: none;"></div>
+    <div id="metadata-content" style="display: none;">
+        <div class="metadata">
+            <div class="metadata-item">
+                <span class="metadata-label">Summary</span>
+                <textarea class="metadata-textarea" id="meta-summary" placeholder="Enter order summary or notes..."></textarea>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Status</span>
+                <select class="metadata-select" id="meta-status">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Created</span>
+                <input type="date" class="metadata-input" id="meta-created" readonly>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Received</span>
+                <div class="date-input-container">
+                    <input type="date" class="metadata-input" id="meta-received">
+                    <button class="clear-date-btn" onclick="clearDate('received')" title="Clear received date">🗑️</button>
+                </div>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Finished</span>
+                <div class="date-input-container">
+                    <input type="date" class="metadata-input" id="meta-finished">
+                    <button class="clear-date-btn" onclick="clearDate('finished')" title="Clear finished date">🗑️</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="element-block">
+    <div id="units-loading" class="loading">Loading repair units...</div>
+    <div id="units-error" class="error-message" style="display: none;"></div>
+    <table id="units-table" style="display: none;">
+        <thead>
+            <tr>
+                <th>Key</th>
+                <th>Serial</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Assignee</th>
+                <th>Created</th>
+                <th>Updated</th>
+                <th>Delete</th>
+            </tr>
+        </thead>
+        <tbody id="units-tbody">
+        </tbody>
+    </table>
+    <div class="add-unit-container">
+        <input type="text" class="add-unit-input" id="unit-serial-input" placeholder="Enter serial number">
+        <div class="add-unit-radio-group">
+            <label class="add-unit-radio-label">
+                <input type="radio" name="unit-type" value="machine" checked>
+                Machine
+            </label>
+            <label class="add-unit-radio-label">
+                <input type="radio" name="unit-type" value="hashboard">
+                Hashboard
+            </label>
+        </div>
+        <button class="add-unit-btn" onclick="addRepairUnit()">Add</button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block script %}
+<script>
+    // Get the order key from template
+    const ORDER_KEY = "{{ order_key }}";
+
+    // Debounce timer for summary updates
+    let summaryDebounceTimer = null;
+
+    // Barcode scanner state tracking
+    let inputStartLength = 0;
+
+    // Load statuses for dropdown
+    async function loadStatuses() {
+        try {
+            const response = await fetch('/api/statuses');
+            if (!response.ok) throw new Error('Failed to load statuses');
+
+            const statuses = await response.json();
+            const statusSelect = document.getElementById('meta-status');
+
+            statusSelect.innerHTML = '';
+            statuses.forEach(status => {
+                const option = document.createElement('option');
+                option.value = status.id;
+                option.textContent = status.status;
+                statusSelect.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error loading statuses:', error);
+        }
+    }
+
+    // Convert ISO datetime to date string (YYYY-MM-DD)
+    function toDateString(isoDateTime) {
+        if (!isoDateTime) return '';
+        return isoDateTime.split('T')[0];
+    }
+
+    // Load order metadata
+    async function loadOrderMetadata() {
+        if (!ORDER_KEY) {
+            document.getElementById('metadata-loading').style.display = 'none';
+            const errorDiv = document.getElementById('metadata-error');
+            errorDiv.textContent = 'No order key provided. Please access this page with ?key=RO-###';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        try {
+            // Load statuses first
+            await loadStatuses();
+
+            const response = await fetch(`/api/repair-order/${ORDER_KEY}`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to load order metadata');
+            }
+
+            const order = await response.json();
+
+            // Populate metadata
+            document.getElementById('order-name-title').innerHTML = `<h1>${order.name}</h1>`;
+
+            // Set summary
+            const summaryTextarea = document.getElementById('meta-summary');
+            summaryTextarea.value = order.summary || '';
+
+            // Set the status dropdown to the current status
+            const statusSelect = document.getElementById('meta-status');
+            statusSelect.value = order.status_id;
+
+            // Set date inputs
+            document.getElementById('meta-created').value = toDateString(order.created);
+            document.getElementById('meta-received').value = toDateString(order.received);
+            document.getElementById('meta-finished').value = toDateString(order.finished);
+
+            document.getElementById('metadata-loading').style.display = 'none';
+            document.getElementById('metadata-content').style.display = 'block';
+            document.getElementById('delete-order-btn').style.display = 'block';
+
+            // Add change listeners for auto-update
+            document.getElementById('meta-status').addEventListener('change', (e) => {
+                updateRepairOrderField('status_id', parseInt(e.target.value));
+            });
+
+            document.getElementById('meta-received').addEventListener('change', (e) => {
+                const dateValue = e.target.value ? `${e.target.value}T00:00:00` : null;
+                updateRepairOrderField('received', dateValue);
+            });
+
+            document.getElementById('meta-finished').addEventListener('change', (e) => {
+                const dateValue = e.target.value ? `${e.target.value}T00:00:00` : null;
+                updateRepairOrderField('finished', dateValue);
+            });
+
+            // Add input listener for summary with debouncing
+            summaryTextarea.addEventListener('input', (e) => {
+                // Add visual indicator that changes are pending
+                e.target.classList.add('updating');
+
+                // Debounce the update (wait 1 second after user stops typing)
+                clearTimeout(summaryDebounceTimer);
+                summaryDebounceTimer = setTimeout(() => {
+                    updateRepairOrderFieldNoReload('summary', e.target.value, e.target);
+                }, 1000);
+            });
+        } catch (error) {
+            document.getElementById('metadata-loading').style.display = 'none';
+            const errorDiv = document.getElementById('metadata-error');
+            errorDiv.textContent = 'Error loading order metadata: ' + error.message;
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    // Update repair order field (with reload)
+    async function updateRepairOrderField(fieldName, fieldValue) {
+        try {
+            const payload = {};
+            payload[fieldName] = fieldValue;
+
+            const response = await fetch(`/api/update-repair-order/${ORDER_KEY}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Reload page to show updated data
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error updating repair order: ' + error.message);
+        }
+    }
+
+    // Update repair order field (without reload - for summary)
+    async function updateRepairOrderFieldNoReload(fieldName, fieldValue, element) {
+        try {
+            const payload = {};
+            payload[fieldName] = fieldValue;
+
+            const response = await fetch(`/api/update-repair-order/${ORDER_KEY}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            // Remove updating indicator when done
+            if (element) {
+                element.classList.remove('updating');
+            }
+
+            if (!result.success) {
+                console.error('Error updating field:', result.message);
+            }
+        } catch (error) {
+            console.error('Error updating repair order:', error);
+            // Remove updating indicator on error too
+            if (element) {
+                element.classList.remove('updating');
+            }
+        }
+    }
+
+    // Clear date field
+    async function clearDate(fieldName) {
+        if (!confirm(`Are you sure you want to clear the ${fieldName} date?`)) {
+            return;
+        }
+
+        try {
+            const payload = {};
+            payload[fieldName] = null;
+
+            const response = await fetch(`/api/update-repair-order/${ORDER_KEY}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Reload page to show cleared date
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error clearing date: ' + error.message);
+        }
+    }
+
+    // Delete repair order
+    async function deleteRepairOrder() {
+        if (!confirm(`Are you sure you want to delete this repair order (${ORDER_KEY})? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/delete-repair-order/${ORDER_KEY}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Navigate back to home page
+                window.location.href = '/';
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error deleting repair order: ' + error.message);
+        }
+    }
+
+    // Add repair unit
+    async function addRepairUnit() {
+        const serialInput = document.getElementById('unit-serial-input');
+        const serial = serialInput.value.trim();
+
+        if (!serial) {
+            alert('Please enter a serial number');
+            return;
+        }
+
+        // Get selected unit type
+        const unitTypeRadio = document.querySelector('input[name="unit-type"]:checked');
+        const unitType = unitTypeRadio ? unitTypeRadio.value : 'machine';
+
+        try {
+            const response = await fetch(`/api/add-repair-unit/${ORDER_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    serial: serial,
+                    type: unitType
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Clear the input
+                serialInput.value = '';
+                // Reset the barcode scanner tracking variable
+                inputStartLength = 0;
+
+                // Reload repair units table without reloading the whole page
+                await loadRepairUnits();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error adding repair unit: ' + error.message);
+        }
+    }
+
+    // Delete repair unit
+    async function deleteRepairUnit(unitKey) {
+        if (!confirm(`Are you sure you want to delete repair unit ${unitKey}? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/delete-repair-unit/${unitKey}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Reload repair units table without reloading the whole page
+                await loadRepairUnits();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error deleting repair unit: ' + error.message);
+        }
+    }
+
+    // Load repair units
+    async function loadRepairUnits() {
+        if (!ORDER_KEY) {
+            document.getElementById('units-loading').style.display = 'none';
+            const errorDiv = document.getElementById('units-error');
+            errorDiv.textContent = 'No order key provided';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/repair-units/${ORDER_KEY}`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to load repair units');
+            }
+
+            const units = await response.json();
+            const tbody = document.getElementById('units-tbody');
+
+            tbody.innerHTML = '';
+
+            if (units.length === 0) {
+                const row = tbody.insertRow();
+                const cell = row.insertCell(0);
+                cell.colSpan = 8;
+                cell.textContent = 'No repair units found for this order';
+                cell.style.textAlign = 'center';
+                cell.style.fontStyle = 'italic';
+            } else {
+                units.forEach(unit => {
+                    const row = tbody.insertRow();
+
+                    // Create clickable link for unit key
+                    const keyCell = row.insertCell(0);
+                    const keyLink = document.createElement('a');
+                    keyLink.href = `/repair?key=${unit.key}`;
+                    keyLink.textContent = unit.key;
+                    keyCell.appendChild(keyLink);
+
+                    row.insertCell(1).textContent = unit.serial || '-';
+                    row.insertCell(2).textContent = unit.type || '-';
+                    row.insertCell(3).textContent = unit.current_status || '-';
+                    row.insertCell(4).textContent = unit.current_assignee || '-';
+                    row.insertCell(5).textContent = unit.created ? new Date(unit.created).toLocaleString() : '-';
+                    row.insertCell(6).textContent = unit.updated_at ? new Date(unit.updated_at).toLocaleString() : '-';
+
+                    // Add delete button
+                    const deleteCell = row.insertCell(7);
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-unit-btn';
+                    deleteBtn.textContent = '🗑️';
+                    deleteBtn.title = 'Delete repair unit';
+                    deleteBtn.onclick = () => deleteRepairUnit(unit.key);
+                    deleteCell.appendChild(deleteBtn);
+                });
+            }
+
+            document.getElementById('units-loading').style.display = 'none';
+            document.getElementById('units-table').style.display = 'table';
+        } catch (error) {
+            document.getElementById('units-loading').style.display = 'none';
+            const errorDiv = document.getElementById('units-error');
+            errorDiv.textContent = 'Error loading repair units: ' + error.message;
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    // Load data when page loads
+    window.addEventListener('DOMContentLoaded', () => {
+        loadOrderMetadata();
+        loadRepairUnits();
+
+        // Setup barcode scanner auto-submit functionality
+        const serialInput = document.getElementById('unit-serial-input');
+        let inputTimer = null;
+
+        // Track when input starts
+        serialInput.addEventListener('focus', () => {
+            inputStartLength = serialInput.value.length;
+        });
+
+        // Detect rapid input (barcode scanner)
+        serialInput.addEventListener('input', () => {
+            // Clear any existing timer
+            clearTimeout(inputTimer);
+
+            // Check if 10+ characters were added rapidly
+            const currentLength = serialInput.value.length;
+            const charsAdded = currentLength - inputStartLength;
+
+            if (charsAdded >= 10) {
+                // Wait a brief moment for scanner to finish, then auto-submit
+                inputTimer = setTimeout(() => {
+                    addRepairUnit();
+                }, 100);
+            }
+
+            // Update the start length for next input event
+            inputStartLength = currentLength;
+        });
+    });
+</script>
+{% endblock %}

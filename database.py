@@ -27,9 +27,9 @@ class RepairOrder(Base):
     __tablename__ = 'repair_orders'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    key = Column(String(20), unique=True, nullable=False, index=True)
     name = Column(String(200), nullable=False)
     status_id = Column(Integer, ForeignKey('statuses.id'), nullable=False)
+    summary = Column(Text, nullable=True)
     created = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     received = Column(DateTime(timezone=True), nullable=True, index=True)
     finished = Column(DateTime(timezone=True), nullable=True, index=True)
@@ -41,7 +41,6 @@ class RepairUnit(Base):
     __tablename__ = 'repair_units'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    key = Column(String(20), unique=True, nullable=False, index=True)
     serial = Column(String(100), nullable=True)
     created = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

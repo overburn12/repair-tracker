@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}Repair Unit{% endblock %}
+
+{% block head %}
+<style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        background-color: #2a2a2a;
+    }
+
+    th, td {
+        padding: 12px;
+        text-align: left;
+        border: 1px solid #404040;
+    }
+
+    th {
+        background-color: #353535;
+        color: #bb86fc;
+        font-weight: bold;
+    }
+
+    tr:hover {
+        background-color: #333333;
+    }
+
+    .search-box {
+        margin: 15px 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .search-box input {
+        padding: 10px;
+        background-color: #353535;
+        border: 1px solid #404040;
+        border-radius: 5px;
+        color: #e0e0e0;
+        font-size: 14px;
+        flex: 1;
+        max-width: 300px;
+    }
+
+    .search-box button {
+        padding: 10px 20px;
+        background-color: #bb86fc;
+        color: #1a1a1a;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+    }
+
+    .search-box button:hover {
+        background-color: #9965d4;
+    }
+
+    .error-message {
+        color: #ff6b6b;
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #2a2a2a;
+        border: 1px solid #ff6b6b;
+        border-radius: 5px;
+    }
+
+    .loading {
+        color: #bb86fc;
+        font-style: italic;
+    }
+
+    .delete-btn {
+        background: none;
+        border: none;
+        color: #ff6b6b;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 5px;
+        transition: color 0.3s ease;
+    }
+
+    .delete-btn:hover {
+        color: #ff4444;
+    }
+
+    .edit-btn {
+        background: none;
+        border: none;
+        color: #bb86fc;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 5px;
+        transition: color 0.3s ease;
+        margin-right: 5px;
+    }
+
+    .edit-btn:hover {
+        color: #9965d4;
+    }
+
+    .metadata {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .metadata-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .metadata-label {
+        color: #bb86fc;
+        font-weight: bold;
+        font-size: 12px;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+
+    .metadata-value {
+        color: #e0e0e0;
+        font-size: 16px;
+    }
+
+    .metadata-select {
+        padding: 8px 12px;
+        background-color: #353535;
+        border: 1px solid #404040;
+        border-radius: 5px;
+        color: #e0e0e0;
+        font-size: 16px;
+        cursor: pointer;
+        transition: border-color 0.3s ease;
+        min-width: 150px;
+    }
+
+    .metadata-select:focus {
+        outline: none;
+        border-color: #bb86fc;
+    }
+
+    .metadata-select option {
+        background-color: #353535;
+        color: #e0e0e0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="element-block">
+    <div id="metadata-loading" class="loading">Loading repair unit details...</div>
+    <div id="metadata-error" class="error-message" style="display: none;"></div>
+    <div class="metadata-item">
+        <span class="metadata-value" style="font-size: 2em;" id="meta-serial">-</span>
+    </div>
+    <div id="metadata-content" style="display: none;">
+        <div class="metadata">
+            <div class="metadata-item" style="display: flex; flex-direction: row; gap: 20px; justify-content: space-between;">
+                <select class="metadata-select" id="meta-assignee" onchange="updateRepairUnitField('current_assignee_id', parseInt(this.value) || null)">
+                    <option value="">No Assignee</option>
+                </select>
+                <select class="metadata-select" id="meta-type" onchange="updateRepairUnitField('type', this.value)">
+                    <option value="">Select Type...</option>
+                </select>
+                <select class="metadata-select" id="meta-status" onchange="updateRepairUnitField('current_status_id', parseInt(this.value))">
+                    <option value="">Select Status...</option>
+                </select>
+            </div>
+            <div>
+                <span class="metadata-value" id="meta-order">-</span>
+            </div>
+            <div>
+                <span class="metadata-label">Created</span>
+                <span class="metadata-value" id="meta-created">-</span>
+            </div>
+            <div>
+                <span class="metadata-label">Last Updated</span>
+                <span class="metadata-value" id="meta-updated">-</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="element-block">
+    <textarea id="json-data" readonly style="width: 100%; min-height: 200px; background-color: #1a1a1a; color: #e0e0e0; border: 1px solid #404040; border-radius: 5px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+</div>
+
+{% endblock %}
+
+{% block script %}
+<script>
+    // Get the unit key from template
+    const UNIT_KEY = "{{ unit_key }}";
+
+    // Load dropdown options
+    async function loadDropdownOptions() {
+        try {
+            // Load assignees
+            const assigneesResponse = await fetch('/api/assignees');
+            if (assigneesResponse.ok) {
+                const assignees = await assigneesResponse.json();
+                const assigneeSelect = document.getElementById('meta-assignee');
+                assigneeSelect.innerHTML = '<option value="">No Assignee</option>';
+                assignees.forEach(assignee => {
+                    const option = document.createElement('option');
+                    option.value = assignee.id;
+                    option.textContent = assignee.name;
+                    assigneeSelect.appendChild(option);
+                });
+            }
+
+            // Load statuses
+            const statusesResponse = await fetch('/api/statuses');
+            if (statusesResponse.ok) {
+                const statuses = await statusesResponse.json();
+                const statusSelect = document.getElementById('meta-status');
+                statusSelect.innerHTML = '<option value="">Select Status...</option>';
+                statuses.forEach(status => {
+                    const option = document.createElement('option');
+                    option.value = status.id;
+                    option.textContent = status.status;
+                    statusSelect.appendChild(option);
+                });
+            }
+
+            // Load unit types
+            const typesResponse = await fetch('/api/unit-types');
+            if (typesResponse.ok) {
+                const types = await typesResponse.json();
+                const typeSelect = document.getElementById('meta-type');
+                typeSelect.innerHTML = '<option value="">Select Type...</option>';
+                types.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type.value;
+                    option.textContent = type.label;
+                    typeSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading dropdown options:', error);
+        }
+    }
+
+    // Update repair unit field
+    async function updateRepairUnitField(fieldName, fieldValue) {
+        try {
+            const payload = {};
+            payload[fieldName] = fieldValue;
+
+            const response = await fetch(`/api/update-repair-unit/${UNIT_KEY}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Reload metadata to show updated data
+                await loadUnitMetadata();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error updating repair unit: ' + error.message);
+        }
+    }
+
+    // Load repair unit metadata
+    async function loadUnitMetadata() {
+        if (!UNIT_KEY) {
+            document.getElementById('metadata-loading').style.display = 'none';
+            const errorDiv = document.getElementById('metadata-error');
+            errorDiv.textContent = 'No unit key provided. Please access this page with ?key=RU-###';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/repair-unit/${UNIT_KEY}`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to load repair unit metadata');
+            }
+
+            const unit = await response.json();
+
+            // Populate metadata
+            document.getElementById('meta-serial').textContent = unit.serial || '-';
+
+            // Set dropdown values
+            document.getElementById('meta-type').value = unit.type || '';
+            document.getElementById('meta-status').value = unit.current_status_id || '';
+            document.getElementById('meta-assignee').value = unit.current_assignee_id || '';
+
+            // Create clickable link for repair order
+            const orderElement = document.getElementById('meta-order');
+            if (unit.repair_order_key) {
+                const orderLink = document.createElement('a');
+                orderLink.href = `/order?key=${unit.repair_order_key}`;
+                orderLink.textContent = unit.repair_order_key;
+                orderElement.innerHTML = '';
+                orderElement.appendChild(orderLink);
+            } else {
+                orderElement.textContent = '-';
+            }
+
+            document.getElementById('meta-created').textContent = unit.created ? new Date(unit.created).toLocaleString() : '-';
+            document.getElementById('meta-updated').textContent = unit.updated_at ? new Date(unit.updated_at).toLocaleString() : '-';
+
+            // Display JSON events data
+            const jsonTextarea = document.getElementById('json-data');
+            if (unit.events_json) {
+                try {
+                    // Try to pretty-print if it's valid JSON
+                    const parsed = JSON.parse(unit.events_json);
+                    jsonTextarea.value = JSON.stringify(parsed, null, 2);
+                } catch (e) {
+                    // If not valid JSON, just display as-is
+                    jsonTextarea.value = unit.events_json;
+                }
+            } else {
+                jsonTextarea.value = 'No events data';
+            }
+
+            document.getElementById('metadata-loading').style.display = 'none';
+            document.getElementById('metadata-content').style.display = 'block';
+        } catch (error) {
+            document.getElementById('metadata-loading').style.display = 'none';
+            const errorDiv = document.getElementById('metadata-error');
+            errorDiv.textContent = 'Error loading repair unit metadata: ' + error.message;
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    // Load data when page loads
+    window.addEventListener('DOMContentLoaded', async () => {
+        // Load dropdown options first
+        await loadDropdownOptions();
+        // Then load unit metadata which will set the selected values
+        await loadUnitMetadata();
+    });
+</script>
+{% endblock %}

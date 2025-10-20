@@ -131,25 +131,182 @@
     .nav-links a::after {
       display: none;
     }
+
+    /* Search bar styles */
+    .nav-search {
+      flex: 1;
+      max-width: 400px;
+      margin: 0 20px;
+    }
+
+    .nav-search input {
+      width: 100%;
+      padding: 8px 12px;
+      background-color: #1a1a1a;
+      border: 1px solid #404040;
+      border-radius: 5px;
+      color: #e0e0e0;
+      font-size: 14px;
+      box-sizing: border-box;
+      transition: border-color 0.3s ease;
+    }
+
+    .nav-search input:focus {
+      outline: none;
+      border-color: #bb86fc;
+    }
+
+    .nav-search input::placeholder {
+      color: #808080;
+    }
+
+    /* Assignee dropdown styles */
+    .nav-assignee {
+      margin-left: 15px;
+    }
+
+    .nav-assignee select {
+      padding: 8px 12px;
+      background-color: #1a1a1a;
+      border: 1px solid #404040;
+      border-radius: 5px;
+      color: #e0e0e0;
+      font-size: 14px;
+      cursor: pointer;
+      transition: border-color 0.3s ease;
+    }
+
+    .nav-assignee select:focus {
+      outline: none;
+      border-color: #bb86fc;
+    }
+
+    .nav-assignee select option {
+      background-color: #1a1a1a;
+      color: #e0e0e0;
+    }
   </style>
   {% block head %}{% endblock %}
 </head>
 <body>
     <nav class="navbar">
       <div class="nav-container">
-        <a href="/" class="nav-logo">
-          <img src="/favicon.ico" alt="Logo">
-          EON Repair
-        </a>
+        <div style="display:flex;" class="nav-logo">EON Repair</div>
+        <div class="nav-search">
+          <input type="text" id="global-search-input" placeholder="Search by RU key, RO key, or serial number..." onkeypress="handleGlobalSearchKeypress(event)">
+        </div>
+        <div class="nav-assignee">
+          <select id="assignee-select" onchange="handleAssigneeChange()">
+            <option value="">Select Assignee...</option>
+          </select>
+        </div>
         <ul class="nav-links">
-          <li><a href="/">Order List</a></li>
-          <li><a href="/update">Add/Remove</a></li>
-          <li><a href="/reports">Order Reports</a></li>
+          <li><a href="/">Orders</a></li>
+          <li><a href="/reports">Reports</a></li>
           <li><a href="/settings">⚙️</a></li>
         </ul>
       </div>
     </nav>
     {% block content %}{% endblock %}
+    <script>
+      // Global search functionality
+      function handleGlobalSearchKeypress(event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          performGlobalSearch();
+        }
+      }
+
+      function performGlobalSearch() {
+        const searchInput = document.getElementById('global-search-input');
+        const searchValue = searchInput.value.trim().toUpperCase();
+
+        if (!searchValue) {
+          return;
+        }
+
+        // Check if it's a RU key (e.g., RU-123)
+        if (searchValue.startsWith('RU-')) {
+          window.location.href = `/repair?key=${searchValue}`;
+          return;
+        }
+
+        // Check if it's a RO key (e.g., RO-123)
+        if (searchValue.startsWith('RO-')) {
+          window.location.href = `/order?key=${searchValue}`;
+          return;
+        }
+
+        // If it's not a key, assume it's a serial number
+        // TODO: Implement serial number search page
+        alert('Serial number search not yet implemented. Please use RU-### or RO-### keys.');
+      }
+
+      // Assignee dropdown functionality
+      async function loadAssignees() {
+        try {
+          const response = await fetch('/api/assignees');
+          if (!response.ok) throw new Error('Failed to load assignees');
+
+          const assignees = await response.json();
+          const select = document.getElementById('assignee-select');
+
+          // Clear existing options except the first one
+          select.innerHTML = '<option value="">Select Assignee...</option>';
+
+          // Add assignees to dropdown
+          assignees.forEach(assignee => {
+            const option = document.createElement('option');
+            option.value = assignee.id;
+            option.textContent = assignee.name;
+            option.dataset.key = assignee.key;
+            select.appendChild(option);
+          });
+
+          // Load saved assignee from localStorage
+          const savedAssigneeId = localStorage.getItem('selectedAssigneeId');
+          if (savedAssigneeId) {
+            select.value = savedAssigneeId;
+          }
+        } catch (error) {
+          console.error('Error loading assignees:', error);
+        }
+      }
+
+      function handleAssigneeChange() {
+        const select = document.getElementById('assignee-select');
+        const selectedId = select.value;
+
+        if (selectedId) {
+          // Save to localStorage
+          localStorage.setItem('selectedAssigneeId', selectedId);
+
+          // Get the selected option to access name and key
+          const selectedOption = select.options[select.selectedIndex];
+          localStorage.setItem('selectedAssigneeName', selectedOption.textContent);
+          localStorage.setItem('selectedAssigneeKey', selectedOption.dataset.key);
+        } else {
+          // Clear localStorage if no assignee selected
+          localStorage.removeItem('selectedAssigneeId');
+          localStorage.removeItem('selectedAssigneeName');
+          localStorage.removeItem('selectedAssigneeKey');
+        }
+      }
+
+      // Helper function to get selected assignee info
+      function getSelectedAssignee() {
+        return {
+          id: localStorage.getItem('selectedAssigneeId'),
+          name: localStorage.getItem('selectedAssigneeName'),
+          key: localStorage.getItem('selectedAssigneeKey')
+        };
+      }
+
+      // Load assignees when page loads
+      window.addEventListener('DOMContentLoaded', () => {
+        loadAssignees();
+      });
+    </script>
     {% block script %}{% endblock %}
 </body>
 </html>

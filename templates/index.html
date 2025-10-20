@@ -1,53 +1,217 @@
 {% extends "base.html" %}
 
-{% block title %} Order Summaries {% endblock %}
+{% block title %}Update Database{% endblock %}
 
 {% block head %}
-    <style>
-        .element-block{
-            width: 90%;
-            height: 90%;
-        }
-        #summary-container{
-            padding: 0px;
-        }
-        #search-container {
-            margin-bottom: 15px;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-        }
-        #search-input {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        #search-input:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
-        }
-        .search-info {
-            margin-top: 8px;
-            font-size: 12px;
-            color: #6c757d;
-        }
-    </style>
+<style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        background-color: #2a2a2a;
+    }
+
+    th, td {
+        padding: 12px;
+        text-align: left;
+        border: 1px solid #404040;
+    }
+
+    th {
+        background-color: #353535;
+        color: #bb86fc;
+        font-weight: bold;
+    }
+
+    tr:hover {
+        background-color: #333333;
+    }
+
+    .search-box {
+        margin: 15px 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .search-box input {
+        padding: 10px;
+        background-color: #353535;
+        border: 1px solid #404040;
+        border-radius: 5px;
+        color: #e0e0e0;
+        font-size: 14px;
+        flex: 1;
+        max-width: 300px;
+    }
+
+    .search-box button {
+        padding: 10px 20px;
+        background-color: #bb86fc;
+        color: #1a1a1a;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+    }
+
+    .search-box button:hover {
+        background-color: #9965d4;
+    }
+
+    .error-message {
+        color: #ff6b6b;
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #2a2a2a;
+        border: 1px solid #ff6b6b;
+        border-radius: 5px;
+    }
+
+    .loading {
+        color: #bb86fc;
+        font-style: italic;
+    }
+
+    .delete-btn {
+        background: none;
+        border: none;
+        color: #ff6b6b;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 5px;
+        transition: color 0.3s ease;
+    }
+
+    .delete-btn:hover {
+        color: #ff4444;
+    }
+
+    .edit-btn {
+        background: none;
+        border: none;
+        color: #bb86fc;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 5px;
+        transition: color 0.3s ease;
+        margin-right: 5px;
+    }
+
+    .edit-btn:hover {
+        color: #9965d4;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-    {{ block_header('Order Summaries') }}
-        <div id="search-container">
-            <input type="text" id="search-input" placeholder="Search orders... (e.g. 'tera', 'lambda', order number, etc.)" />
-            <div class="search-info" id="search-info">Loading orders...</div>
-        </div>
-        <div id="summary-container">
-        </div>
-    {{ block_footer() }}
+
+<div class="element-block">
+    <div id="orders-loading" class="loading">Loading repair orders...</div>
+    <div id="orders-error" class="error-message" style="display: none;"></div>
+    <table id="orders-table" style="display: none;">
+        <thead>
+            <tr>
+                <th>Key</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Machines</th>
+                <th>Hashboards</th>
+                <th>Created</th>
+                <th>Received</th>
+                <th>Finished</th>
+            </tr>
+        </thead>
+        <tbody id="orders-tbody">
+        </tbody>
+    </table>
+    <div class="search-box">
+        <input type="text" id="new-order-input" placeholder="Enter new order name">
+        <button onclick="addRepairOrder()">Add</button>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block script %}
-    <script></script>
+<script>
+
+    // Load repair orders on page load
+    async function loadRepairOrders() {
+        try {
+            const response = await fetch('/api/repair-orders');
+            if (!response.ok) throw new Error('Failed to load repair orders');
+
+            const orders = await response.json();
+            const tbody = document.getElementById('orders-tbody');
+
+            tbody.innerHTML = '';
+            orders.forEach(order => {
+                const row = tbody.insertRow();
+                row.insertCell(0).textContent = order.key;
+
+                // Create clickable link for order name
+                const nameCell = row.insertCell(1);
+                const nameLink = document.createElement('a');
+                nameLink.href = `/order?key=${order.key}`;
+                nameLink.textContent = order.name;
+                nameCell.appendChild(nameLink);
+
+                row.insertCell(2).textContent = order.status;
+                row.insertCell(3).textContent = order.machine_count || 0;
+                row.insertCell(4).textContent = order.hashboard_count || 0;
+                row.insertCell(5).textContent = order.created ? new Date(order.created).toLocaleDateString() : '-';
+                row.insertCell(6).textContent = order.received ? new Date(order.received).toLocaleDateString() : '-';
+                row.insertCell(7).textContent = order.finished ? new Date(order.finished).toLocaleDateString() : '-';
+            });
+
+            document.getElementById('orders-loading').style.display = 'none';
+            document.getElementById('orders-table').style.display = 'table';
+        } catch (error) {
+            document.getElementById('orders-loading').style.display = 'none';
+            const errorDiv = document.getElementById('orders-error');
+            errorDiv.textContent = 'Error loading repair orders: ' + error.message;
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    // Add new repair order
+    async function addRepairOrder() {
+        const orderInput = document.getElementById('new-order-input');
+        const orderName = orderInput.value.trim();
+
+        if (!orderName) {
+            alert('Please enter an order name');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/add-repair-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: orderName })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Clear input and reload page
+                orderInput.value = '';
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error adding repair order: ' + error.message);
+        }
+    }
+
+    // Load data when page loads
+    window.addEventListener('DOMContentLoaded', () => {
+        loadRepairOrders();
+    });
+</script>
 {% endblock %}
