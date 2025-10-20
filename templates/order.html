@@ -27,6 +27,12 @@
         background-color: #333333;
     }
 
+    .meta-data-mini{
+        display: inline-flex; 
+        justify-content: space-between; 
+        gap: 1rem;
+    }
+
     .error-message {
         color: #ff6b6b;
         margin-top: 10px;
@@ -228,41 +234,44 @@
 {% block content %}
 
 <div class="element-block">
-    <div id="order-name-title">
-    </div>
     <div>
+        <span id="order-name-title" style="font-size: 2em;"><!--order name goes here as text--></span>
         <button class="delete-order-btn" onclick="deleteRepairOrder()" title="Delete this repair order" style="display: none;" id="delete-order-btn">🗑️</button>
     </div>
     <div id="metadata-loading" class="loading">Loading order details...</div>
     <div id="metadata-error" class="error-message" style="display: none;"></div>
     <div id="metadata-content" style="display: none;">
         <div class="metadata">
-            <div class="metadata-item">
-                <span class="metadata-label">Summary</span>
-                <textarea class="metadata-textarea" id="meta-summary" placeholder="Enter order summary or notes..."></textarea>
-            </div>
-            <div class="metadata-item">
-                <span class="metadata-label">Status</span>
-                <select class="metadata-select" id="meta-status">
-                    <option value="">Loading...</option>
-                </select>
-            </div>
-            <div class="metadata-item">
-                <span class="metadata-label">Created</span>
-                <input type="date" class="metadata-input" id="meta-created" readonly>
-            </div>
-            <div class="metadata-item">
-                <span class="metadata-label">Received</span>
-                <div class="date-input-container">
-                    <input type="date" class="metadata-input" id="meta-received">
-                    <button class="clear-date-btn" onclick="clearDate('received')" title="Clear received date">🗑️</button>
+            <div class="meta-data-mini">
+                <div class="metadata-item">
+                    <span class="metadata-label">Status</span>
+                    <select class="metadata-select" id="meta-status">
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">Created</span>
+                    <input type="date" class="metadata-input" id="meta-created" readonly>
                 </div>
             </div>
             <div class="metadata-item">
-                <span class="metadata-label">Finished</span>
-                <div class="date-input-container">
-                    <input type="date" class="metadata-input" id="meta-finished">
-                    <button class="clear-date-btn" onclick="clearDate('finished')" title="Clear finished date">🗑️</button>
+                <span class="metadata-label">Summary</span>
+                <textarea class="metadata-textarea" rows="8" id="meta-summary" placeholder="Enter order summary or notes..."></textarea>
+            </div>
+            <div class="meta-data-mini">
+                <div class="metadata-item">
+                    <span class="metadata-label">Received</span>
+                    <div class="date-input-container">
+                        <input type="date" class="metadata-input" id="meta-received">
+                        <button class="clear-date-btn" onclick="clearDate('received')" title="Clear received date">🗑️</button>
+                    </div>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">Finished</span>
+                    <div class="date-input-container">
+                        <input type="date" class="metadata-input" id="meta-finished">
+                        <button class="clear-date-btn" onclick="clearDate('finished')" title="Clear finished date">🗑️</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -367,7 +376,7 @@
             const order = await response.json();
 
             // Populate metadata
-            document.getElementById('order-name-title').innerHTML = `<h1>${order.name}</h1>`;
+            document.getElementById('order-name-title').textContent = order.name;
 
             // Set summary
             const summaryTextarea = document.getElementById('meta-summary');
