@@ -155,6 +155,29 @@
         background-color: #353535;
         color: #e0e0e0;
     }
+
+    /* Editable name/serial styles */
+    .editable-name {
+        cursor: pointer;
+        padding: 5px;
+        border-radius: 3px;
+        transition: background-color 0.2s ease;
+    }
+
+    .editable-name:hover {
+        background-color: rgba(187, 134, 252, 0.2);
+    }
+
+    .editable-name-input {
+        font-size: inherit;
+        padding: 5px;
+        background-color: #353535;
+        border: 2px solid #bb86fc;
+        border-radius: 3px;
+        color: #e0e0e0;
+        font-family: inherit;
+        outline: none;
+    }
 </style>
 {% endblock %}
 
@@ -165,8 +188,11 @@
     <div id="metadata-error" class="error-message" style="display: none;"></div>
     <div id="metadata-content" style="display: none;">
         <div class="metadata">
-            <div class="metadata-item">
-                <span style="font-size: 2em;" id="meta-serial">-</span>
+            <div class="meta-data-mini">
+                <div class="metadata-item">
+                    <span style="font-size: 2em;" class="editable-name" id="meta-serial" onclick="makeSerialEditable()">-serial here-</span>
+                </div>
+                <button class="delete-btn" onclick="deleteRepairUnit()" title="Delete this repair unit" style="font-size: 24px; align-self: center;">🗑️</button>
             </div>
             <div class="meta-data-mini">
                 <div>
@@ -201,8 +227,14 @@
 
 
 <div class="element-block">
+    <span>Add Comment</span>
+    <textarea id="comment-textarea" style="width: 95%; height: 200px; background-color: #1a1a1a; color: #e0e0e0; border: 1px solid #404040; border-radius: 5px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical; overflow-y: auto; white-space: pre;"></textarea>
+    <button id="submit-comment-btn" onclick="submitComment()" style="margin-top: 10px; padding: 10px 20px; background-color: #bb86fc; color: #1a1a1a; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background-color 0.3s ease;">Submit</button>
+</div>
+
+<div class="element-block">
     <span>Event Log</span>
-    <textarea id="json-data" readonly style="width: 100%; min-height: 200px; background-color: #1a1a1a; color: #e0e0e0; border: 1px solid #404040; border-radius: 5px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+    <div id="events-list" style="width: 95%; min-height: 200px; background-color: #1a1a1a; color: #e0e0e0; border: 1px solid #404040; border-radius: 5px; padding: 10px; display: flex; flex-direction: column; gap: 10px;"></div>
 </div>
 
 {% endblock %}
@@ -211,6 +243,13 @@
 <script>
     // Get the unit key from template
     const UNIT_KEY = "{{ unit_key }}";
+
+    // Helper function to convert UTC ISO string to local time string
+    function utcToLocal(utcString) {
+        if (!utcString) return '-';
+        const date = new Date(utcString + (utcString.includes('Z') ? '' : 'Z'));
+        return date.toLocaleString();
+    }
 
     // Load dropdown options
     async function loadDropdownOptions() {
@@ -261,6 +300,96 @@
         }
     }
 
+    // Make serial editable
+    function makeSerialEditable() {
+        const serialSpan = document.getElementById('meta-serial');
+        const currentSerial = serialSpan.textContent;
+
+        // Create input element
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentSerial;
+        input.className = 'editable-name-input';
+        input.style.fontSize = '2em';
+        input.style.width = Math.max(300, currentSerial.length * 20) + 'px';
+
+        // Replace span with input
+        serialSpan.replaceWith(input);
+        input.focus();
+        input.select();
+
+        // Handle enter key
+        input.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                await saveSerial(input, currentSerial);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelSerialEdit(input, currentSerial);
+            }
+        });
+
+        // Handle blur (when user clicks away)
+        input.addEventListener('blur', async () => {
+            await saveSerial(input, currentSerial);
+        });
+    }
+
+    // Save serial
+    async function saveSerial(input, originalSerial) {
+        const newSerial = input.value.trim();
+
+        // Create span element
+        const span = document.createElement('span');
+        span.id = 'meta-serial';
+        span.className = 'editable-name';
+        span.style.fontSize = '2em';
+        span.onclick = makeSerialEditable;
+
+        if (!newSerial || newSerial === originalSerial) {
+            // Revert to original serial
+            span.textContent = originalSerial;
+            input.replaceWith(span);
+            return;
+        }
+
+        // Update in database
+        try {
+            const response = await fetch(`/api/update-repair-unit/${UNIT_KEY}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ serial: newSerial })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                span.textContent = newSerial;
+            } else {
+                span.textContent = originalSerial;
+                alert('Error updating serial: ' + result.message);
+            }
+        } catch (error) {
+            span.textContent = originalSerial;
+            alert('Error updating serial: ' + error.message);
+        }
+
+        input.replaceWith(span);
+    }
+
+    // Cancel serial edit
+    function cancelSerialEdit(input, originalSerial) {
+        const span = document.createElement('span');
+        span.id = 'meta-serial';
+        span.className = 'editable-name';
+        span.style.fontSize = '2em';
+        span.onclick = makeSerialEditable;
+        span.textContent = originalSerial;
+        input.replaceWith(span);
+    }
+
     // Update repair unit field
     async function updateRepairUnitField(fieldName, fieldValue) {
         try {
@@ -278,6 +407,27 @@
             const result = await response.json();
 
             if (result.success) {
+                // If status was changed, log the status change event
+                if (fieldName === 'current_status_id') {
+                    const assignee = getSelectedAssignee();
+                    if (assignee.key) {
+                        // Get the status name from the dropdown
+                        const statusSelect = document.getElementById('meta-status');
+                        const statusName = statusSelect.options[statusSelect.selectedIndex].textContent;
+
+                        await fetch(`/api/add-status-event/${UNIT_KEY}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                status_name: statusName,
+                                assignee_key: assignee.key
+                            })
+                        });
+                    }
+                }
+
                 // Reload metadata to show updated data
                 await loadUnitMetadata();
             } else {
@@ -327,22 +477,59 @@
                 orderElement.textContent = '-';
             }
 
-            document.getElementById('meta-created').textContent = unit.created ? new Date(unit.created).toLocaleString() : '-';
-            document.getElementById('meta-updated').textContent = unit.updated_at ? new Date(unit.updated_at).toLocaleString() : '-';
+            document.getElementById('meta-created').textContent = utcToLocal(unit.created);
+            document.getElementById('meta-updated').textContent = utcToLocal(unit.updated_at);
 
-            // Display JSON events data
-            const jsonTextarea = document.getElementById('json-data');
+            // Display events data as formatted list
+            const eventsList = document.getElementById('events-list');
+            eventsList.innerHTML = ''; // Clear existing content
+
             if (unit.events_json) {
                 try {
-                    // Try to pretty-print if it's valid JSON
                     const parsed = JSON.parse(unit.events_json);
-                    jsonTextarea.value = JSON.stringify(parsed, null, 2);
+                    const events = parsed.events || [];
+
+                    if (events.length === 0) {
+                        eventsList.innerHTML = '<span style="color: #888;">No events recorded</span>';
+                    } else {
+                        events.forEach(event => {
+                            const eventSpan = document.createElement('span');
+                            eventSpan.style.padding = '10px';
+                            eventSpan.style.backgroundColor = '#2a2a2a';
+                            eventSpan.style.borderRadius = '5px';
+                            eventSpan.style.borderLeft = '3px solid #bb86fc';
+
+                            let content = '';
+
+                            if (event.type === 'repair') {
+                                content = `<strong style="color: #bb86fc;">REPAIR</strong><br>`;
+                                if (event.assignee) content += `Assignee: ${event.assignee}<br>`;
+                                if (event.timestamp) content += `Time: ${utcToLocal(event.timestamp)}<br>`;
+                                if (event.comment) content += `Comment: ${event.comment}<br>`;
+                                if (event.components && event.components.length > 0) {
+                                    content += `Components: ${event.components.join(', ')}`;
+                                }
+                            } else if (event.type === 'status') {
+                                content = `<strong style="color: #03dac6;">STATUS</strong><br>`;
+                                if (event.assignee) content += `Assignee: ${event.assignee}<br>`;
+                                if (event.timestamp) content += `Time: ${utcToLocal(event.timestamp)}<br>`;
+                                if (event.status) content += `Status: ${event.status}`;
+                            } else if (event.type === 'comment') {
+                                content = `<strong style="color: #cf6679;">COMMENT</strong><br>`;
+                                if (event.assignee) content += `Assignee: ${event.assignee}<br>`;
+                                if (event.timestamp) content += `Time: ${utcToLocal(event.timestamp)}<br>`;
+                                if (event.comment) content += `Comment: ${event.comment}`;
+                            }
+
+                            eventSpan.innerHTML = content;
+                            eventsList.appendChild(eventSpan);
+                        });
+                    }
                 } catch (e) {
-                    // If not valid JSON, just display as-is
-                    jsonTextarea.value = unit.events_json;
+                    eventsList.innerHTML = '<span style="color: #ff6b6b;">Invalid events data format</span>';
                 }
             } else {
-                jsonTextarea.value = 'No events data';
+                eventsList.innerHTML = '<span style="color: #888;">No events data</span>';
             }
 
             document.getElementById('metadata-loading').style.display = 'none';
@@ -352,6 +539,82 @@
             const errorDiv = document.getElementById('metadata-error');
             errorDiv.textContent = 'Error loading repair unit metadata: ' + error.message;
             errorDiv.style.display = 'block';
+        }
+    }
+
+    // Delete repair unit
+    async function deleteRepairUnit() {
+        if (!confirm(`Are you sure you want to delete this repair unit (${UNIT_KEY})? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/delete-repair-unit/${UNIT_KEY}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Get the repair order key from the metadata before navigating
+                const orderElement = document.getElementById('meta-order');
+                const orderLink = orderElement.querySelector('a');
+                if (orderLink) {
+                    const orderKey = orderLink.textContent;
+                    // Navigate to the order page
+                    window.location.href = `/order?key=${orderKey}`;
+                } else {
+                    // Fallback to home page if order key not found
+                    window.location.href = '/';
+                }
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error deleting repair unit: ' + error.message);
+        }
+    }
+
+    // Submit comment
+    async function submitComment() {
+        const commentTextarea = document.getElementById('comment-textarea');
+        const comment = commentTextarea.value.trim();
+
+        if (!comment) {
+            alert('Please enter a comment');
+            return;
+        }
+
+        const assignee = getSelectedAssignee();
+        if (!assignee.key) {
+            alert('Please select an assignee from the menu bar');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/add-comment/${UNIT_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    comment: comment,
+                    assignee_key: assignee.key
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Clear the textarea
+                commentTextarea.value = '';
+                // Reload the events list
+                await loadUnitMetadata();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error submitting comment: ' + error.message);
         }
     }
 

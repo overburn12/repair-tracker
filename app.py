@@ -301,6 +301,58 @@ def api_delete_repair_unit(unit_key):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@app.route('/api/add-comment/<unit_key>', methods=['POST'])
+def api_add_comment(unit_key):
+    """Add a comment event to a repair unit."""
+    try:
+        data = request.get_json()
+        comment = data.get('comment')
+        assignee_key = data.get('assignee_key')
+
+        if not comment or not comment.strip():
+            return jsonify({'success': False, 'message': 'Comment is required'}), 400
+
+        if not assignee_key:
+            return jsonify({'success': False, 'message': 'Assignee key is required'}), 400
+
+        result = db_service.add_event_to_repair_unit(
+            unit_key=unit_key,
+            event_type='comment',
+            assignee_key=assignee_key,
+            comment=comment.strip()
+        )
+        status_code = 200 if result['success'] else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/add-status-event/<unit_key>', methods=['POST'])
+def api_add_status_event(unit_key):
+    """Add a status change event to a repair unit."""
+    try:
+        data = request.get_json()
+        status_name = data.get('status_name')
+        assignee_key = data.get('assignee_key')
+
+        if not status_name:
+            return jsonify({'success': False, 'message': 'Status name is required'}), 400
+
+        if not assignee_key:
+            return jsonify({'success': False, 'message': 'Assignee key is required'}), 400
+
+        result = db_service.add_event_to_repair_unit(
+            unit_key=unit_key,
+            event_type='status',
+            assignee_key=assignee_key,
+            status_name=status_name
+        )
+        status_code = 200 if result['success'] else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @app.route('/api/unit-types', methods=['GET'])
 def api_get_unit_types():
     """Get all possible unit types."""

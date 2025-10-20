@@ -136,6 +136,19 @@
 
 {% block script %}
 <script>
+    // Helper function to convert UTC ISO string to local time string
+    function utcToLocal(utcString) {
+        if (!utcString) return '-';
+        const date = new Date(utcString + (utcString.includes('Z') ? '' : 'Z'));
+        return date.toLocaleString();
+    }
+
+    // Helper function to convert UTC ISO string to local date string (date only)
+    function utcToLocalDate(utcString) {
+        if (!utcString) return '-';
+        const date = new Date(utcString + (utcString.includes('Z') ? '' : 'Z'));
+        return date.toLocaleDateString();
+    }
 
     // Load repair orders on page load
     async function loadRepairOrders() {
@@ -161,9 +174,9 @@
                 row.insertCell(2).textContent = order.status;
                 row.insertCell(3).textContent = order.machine_count || 0;
                 row.insertCell(4).textContent = order.hashboard_count || 0;
-                row.insertCell(5).textContent = order.created ? new Date(order.created).toLocaleDateString() : '-';
-                row.insertCell(6).textContent = order.received ? new Date(order.received).toLocaleDateString() : '-';
-                row.insertCell(7).textContent = order.finished ? new Date(order.finished).toLocaleDateString() : '-';
+                row.insertCell(5).textContent = utcToLocalDate(order.created);
+                row.insertCell(6).textContent = utcToLocalDate(order.received);
+                row.insertCell(7).textContent = utcToLocalDate(order.finished);
             });
 
             document.getElementById('orders-loading').style.display = 'none';

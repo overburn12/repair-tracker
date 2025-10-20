@@ -228,6 +228,29 @@
     .delete-unit-btn:hover {
         color: #ff4444;
     }
+
+    /* Editable name/serial styles */
+    .editable-name {
+        cursor: pointer;
+        padding: 5px;
+        border-radius: 3px;
+        transition: background-color 0.2s ease;
+    }
+
+    .editable-name:hover {
+        background-color: rgba(187, 134, 252, 0.2);
+    }
+
+    .editable-name-input {
+        font-size: inherit;
+        padding: 5px;
+        background-color: #353535;
+        border: 2px solid #bb86fc;
+        border-radius: 3px;
+        color: #e0e0e0;
+        font-family: inherit;
+        outline: none;
+    }
 </style>
 {% endblock %}
 
@@ -235,7 +258,7 @@
 
 <div class="element-block">
     <div>
-        <span id="order-name-title" style="font-size: 2em;"><!--order name goes here as text--></span>
+        <span id="order-name-title" class="editable-name" style="font-size: 2em;" onclick="makeOrderNameEditable()"><!--order name goes here as text--></span>
         <button class="delete-order-btn" onclick="deleteRepairOrder()" title="Delete this repair order" style="display: none;" id="delete-order-btn">🗑️</button>
     </div>
     <div id="metadata-loading" class="loading">Loading order details...</div>
@@ -301,11 +324,11 @@
         <input type="text" class="add-unit-input" id="unit-serial-input" placeholder="Enter serial number">
         <div class="add-unit-radio-group">
             <label class="add-unit-radio-label">
-                <input type="radio" name="unit-type" value="machine" checked>
+                <input type="radio" name="unit-type" value="machine" >
                 Machine
             </label>
             <label class="add-unit-radio-label">
-                <input type="radio" name="unit-type" value="hashboard">
+                <input type="radio" name="unit-type" value="hashboard" checked>
                 Hashboard
             </label>
         </div>
@@ -319,6 +342,13 @@
 <script>
     // Get the order key from template
     const ORDER_KEY = "{{ order_key }}";
+
+    // Helper function to convert UTC ISO string to local time string
+    function utcToLocal(utcString) {
+        if (!utcString) return '-';
+        const date = new Date(utcString + (utcString.includes('Z') ? '' : 'Z'));
+        return date.toLocaleString();
+    }
 
     // Debounce timer for summary updates
     let summaryDebounceTimer = null;
@@ -489,6 +519,96 @@
         }
     }
 
+    // Make order name editable
+    function makeOrderNameEditable() {
+        const nameSpan = document.getElementById('order-name-title');
+        const currentName = nameSpan.textContent;
+
+        // Create input element
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentName;
+        input.className = 'editable-name-input';
+        input.style.fontSize = '2em';
+        input.style.width = Math.max(300, currentName.length * 20) + 'px';
+
+        // Replace span with input
+        nameSpan.replaceWith(input);
+        input.focus();
+        input.select();
+
+        // Handle enter key
+        input.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                await saveOrderName(input, currentName);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelOrderNameEdit(input, currentName);
+            }
+        });
+
+        // Handle blur (when user clicks away)
+        input.addEventListener('blur', async () => {
+            await saveOrderName(input, currentName);
+        });
+    }
+
+    // Save order name
+    async function saveOrderName(input, originalName) {
+        const newName = input.value.trim();
+
+        // Create span element
+        const span = document.createElement('span');
+        span.id = 'order-name-title';
+        span.className = 'editable-name';
+        span.style.fontSize = '2em';
+        span.onclick = makeOrderNameEditable;
+
+        if (!newName || newName === originalName) {
+            // Revert to original name
+            span.textContent = originalName;
+            input.replaceWith(span);
+            return;
+        }
+
+        // Update in database
+        try {
+            const response = await fetch(`/api/update-repair-order/${ORDER_KEY}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: newName })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                span.textContent = newName;
+            } else {
+                span.textContent = originalName;
+                alert('Error updating order name: ' + result.message);
+            }
+        } catch (error) {
+            span.textContent = originalName;
+            alert('Error updating order name: ' + error.message);
+        }
+
+        input.replaceWith(span);
+    }
+
+    // Cancel order name edit
+    function cancelOrderNameEdit(input, originalName) {
+        const span = document.createElement('span');
+        span.id = 'order-name-title';
+        span.className = 'editable-name';
+        span.style.fontSize = '2em';
+        span.onclick = makeOrderNameEditable;
+        span.textContent = originalName;
+        input.replaceWith(span);
+    }
+
     // Clear date field
     async function clearDate(fieldName) {
         if (!confirm(`Are you sure you want to clear the ${fieldName} date?`)) {
@@ -573,6 +693,26 @@
             const result = await response.json();
 
             if (result.success) {
+                // Get the assignee from localStorage
+                const assignee = getSelectedAssignee();
+
+                // If there's an assignee selected, update the new repair unit
+                if (assignee.id && result.key) {
+                    try {
+                        await fetch(`/api/update-repair-unit/${result.key}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                current_assignee_id: parseInt(assignee.id)
+                            })
+                        });
+                    } catch (error) {
+                        console.error('Error setting assignee:', error);
+                    }
+                }
+
                 // Clear the input
                 serialInput.value = '';
                 // Reset the barcode scanner tracking variable
@@ -586,6 +726,100 @@
         } catch (error) {
             alert('Error adding repair unit: ' + error.message);
         }
+    }
+
+    // Make unit serial editable
+    function makeUnitSerialEditable(serialSpan, unitKey) {
+        const currentSerial = serialSpan.textContent;
+
+        // Create input element
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentSerial;
+        input.className = 'editable-name-input';
+        input.style.width = Math.max(150, currentSerial.length * 10) + 'px';
+
+        // Replace span with input
+        serialSpan.replaceWith(input);
+        input.focus();
+        input.select();
+
+        // Handle enter key
+        input.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                await saveUnitSerial(input, unitKey, currentSerial);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelUnitSerialEdit(input, currentSerial, unitKey);
+            }
+        });
+
+        // Handle blur (when user clicks away)
+        input.addEventListener('blur', async () => {
+            await saveUnitSerial(input, unitKey, currentSerial);
+        });
+    }
+
+    // Save unit serial
+    async function saveUnitSerial(input, unitKey, originalSerial) {
+        const newSerial = input.value.trim();
+
+        // Create span element
+        const span = document.createElement('span');
+        span.className = 'editable-name';
+        span.style.marginRight = '10px';
+        span.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            makeUnitSerialEditable(span, unitKey);
+        };
+
+        if (!newSerial || newSerial === originalSerial) {
+            // Revert to original serial
+            span.textContent = originalSerial;
+            input.replaceWith(span);
+            return;
+        }
+
+        // Update in database
+        try {
+            const response = await fetch(`/api/update-repair-unit/${unitKey}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ serial: newSerial })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                span.textContent = newSerial;
+            } else {
+                span.textContent = originalSerial;
+                alert('Error updating serial: ' + result.message);
+            }
+        } catch (error) {
+            span.textContent = originalSerial;
+            alert('Error updating serial: ' + error.message);
+        }
+
+        input.replaceWith(span);
+    }
+
+    // Cancel unit serial edit
+    function cancelUnitSerialEdit(input, originalSerial, unitKey) {
+        const span = document.createElement('span');
+        span.className = 'editable-name';
+        span.style.marginRight = '10px';
+        span.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            makeUnitSerialEditable(span, unitKey);
+        };
+        span.textContent = originalSerial;
+        input.replaceWith(span);
     }
 
     // Delete repair unit
@@ -645,21 +879,24 @@
                 units.forEach(unit => {
                     const row = tbody.insertRow();
 
-                    // Create clickable link for unit key
+                    // Column 0: Unit Key (Text content, non-linked)
                     row.insertCell(0).textContent = unit.key;
-                    
+
+                    // Column 1: Unit Serial (Now the direct URL link, non-editable)
                     const serialCell = row.insertCell(1);
-                    const keyLink = document.createElement('a');
-                    keyLink.href = `/repair?key=${unit.key}`;
-                    keyLink.textContent = unit.serial;
-                    serialCell.appendChild(keyLink);
+                    const serialLink = document.createElement('a');
+                    serialLink.href = `/repair?key=${unit.key}`;
+                    serialLink.textContent = unit.serial || '-'; // Display the serial number as the link text
+                    serialLink.title = `Open repair unit for serial: ${unit.serial}`;
+                    // The serial is now a clean, non-editable link, removing the need for the separate '🔗' emoji.
+                    serialCell.appendChild(serialLink);
 
 
                     row.insertCell(2).textContent = unit.type || '-';
                     row.insertCell(3).textContent = unit.current_status || '-';
                     row.insertCell(4).textContent = unit.current_assignee || '-';
-                    row.insertCell(5).textContent = unit.created ? new Date(unit.created).toLocaleString() : '-';
-                    row.insertCell(6).textContent = unit.updated_at ? new Date(unit.updated_at).toLocaleString() : '-';
+                    row.insertCell(5).textContent = utcToLocal(unit.created);
+                    row.insertCell(6).textContent = utcToLocal(unit.updated_at);
 
                     // Add delete button
                     const deleteCell = row.insertCell(7);

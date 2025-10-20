@@ -409,6 +409,91 @@ class DatabaseService:
         finally:
             session.close()
 
+    def add_event_to_repair_unit(self, unit_key, event_type, assignee_key, comment=None, status_name=None, components=None):
+        """Add an event to a repair unit's events_json field.
+
+        Args:
+            unit_key: The repair unit key (e.g., 'RU-1423')
+            event_type: Type of event ('comment', 'status', or 'repair')
+            assignee_key: The assignee key (e.g., 'AS-1')
+            comment: Comment text (for 'comment' and 'repair' events)
+            status_name: Status name (for 'status' events)
+            components: List of component codes (for 'repair' events)
+
+        Returns:
+            dict with success status and message
+        """
+        import json
+        from datetime import datetime
+
+        session = self.get_session()
+        try:
+            # Parse the unit key
+            prefix, unit_id = self._parse_key(unit_key)
+
+            if prefix != 'RU':
+                return {'success': False, 'message': f"Expected RU key, got: {unit_key}"}
+
+            # Parse the assignee key
+            assignee_prefix, assignee_id = self._parse_key(assignee_key)
+            if assignee_prefix != 'AS':
+                return {'success': False, 'message': f"Expected AS key for assignee, got: {assignee_key}"}
+
+            # Find the repair unit
+            unit = session.query(RepairUnit).filter(RepairUnit.id == unit_id).first()
+            if not unit:
+                return {'success': False, 'message': f"Repair unit with key '{unit_key}' not found"}
+
+            # Find the assignee
+            assignee = session.query(Assignee).filter(Assignee.id == assignee_id).first()
+            if not assignee:
+                return {'success': False, 'message': f"Assignee with key '{assignee_key}' not found"}
+
+            # Parse existing events_json or create new structure
+            if unit.events_json:
+                try:
+                    events_data = json.loads(unit.events_json)
+                except json.JSONDecodeError:
+                    events_data = {"events": []}
+            else:
+                events_data = {"events": []}
+
+            # Create the new event
+            timestamp = datetime.now().isoformat()
+            new_event = {
+                "type": event_type,
+                "assignee": assignee.name,
+                "timestamp": timestamp
+            }
+
+            # Add event-specific fields
+            if event_type == 'comment':
+                new_event['comment'] = comment or ''
+            elif event_type == 'status':
+                new_event['status'] = status_name or ''
+            elif event_type == 'repair':
+                new_event['comment'] = comment or ''
+                new_event['components'] = components or []
+
+            # Append the new event
+            events_data['events'].append(new_event)
+
+            # Update the repair unit
+            unit.events_json = json.dumps(events_data)
+            session.commit()
+
+            return {
+                'success': True,
+                'message': f"Event added to repair unit '{unit_key}'"
+            }
+        except ValueError as e:
+            return {'success': False, 'message': str(e)}
+        except Exception as e:
+            session.rollback()
+            return {'success': False, 'message': f"Error adding event: {str(e)}"}
+        finally:
+            session.close()
+
     # ============================================================
     # DELETE FUNCTIONS
     # ============================================================
