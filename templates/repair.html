@@ -27,6 +27,12 @@
         background-color: #333333;
     }
 
+    .meta-data-mini{
+        display: inline-flex; 
+        justify-content: space-between; 
+        gap: 1rem;
+    }
+
     .search-box {
         margin: 15px 0;
         display: flex;
@@ -157,12 +163,18 @@
 <div class="element-block">
     <div id="metadata-loading" class="loading">Loading repair unit details...</div>
     <div id="metadata-error" class="error-message" style="display: none;"></div>
-    <div class="metadata-item">
-        <span class="metadata-value" style="font-size: 2em;" id="meta-serial">-</span>
-    </div>
     <div id="metadata-content" style="display: none;">
         <div class="metadata">
-            <div class="metadata-item" style="display: flex; flex-direction: row; gap: 20px; justify-content: space-between;">
+            <div class="metadata-item">
+                <span style="font-size: 2em;" id="meta-serial">-</span>
+            </div>
+            <div class="meta-data-mini">
+                <div>
+                    <span class="metadata-label">Repair Order</span>
+                    <span class="metadata-value" id="meta-order">-</span>
+                </div>
+            </div>
+            <div class="meta-data-mini">
                 <select class="metadata-select" id="meta-assignee" onchange="updateRepairUnitField('current_assignee_id', parseInt(this.value) || null)">
                     <option value="">No Assignee</option>
                 </select>
@@ -173,16 +185,15 @@
                     <option value="">Select Status...</option>
                 </select>
             </div>
-            <div>
-                <span class="metadata-value" id="meta-order">-</span>
-            </div>
-            <div>
-                <span class="metadata-label">Created</span>
-                <span class="metadata-value" id="meta-created">-</span>
-            </div>
-            <div>
-                <span class="metadata-label">Last Updated</span>
-                <span class="metadata-value" id="meta-updated">-</span>
+            <div class="meta-data-mini">
+                <div>
+                    <span class="metadata-label">Created</span>
+                    <span class="metadata-value" id="meta-created">-</span>
+                </div>
+                <div>
+                    <span class="metadata-label">Last Updated</span>
+                    <span class="metadata-value" id="meta-updated">-</span>
+                </div>
             </div>
         </div>
     </div>
@@ -190,6 +201,7 @@
 
 
 <div class="element-block">
+    <span>Event Log</span>
     <textarea id="json-data" readonly style="width: 100%; min-height: 200px; background-color: #1a1a1a; color: #e0e0e0; border: 1px solid #404040; border-radius: 5px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
 </div>
 
