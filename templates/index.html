@@ -159,8 +159,11 @@
             const orders = await response.json();
             const tbody = document.getElementById('orders-tbody');
 
+            // Reverse the order to show newest first
+            const reversedOrders = [...orders].reverse();
+
             tbody.innerHTML = '';
-            orders.forEach(order => {
+            reversedOrders.forEach(order => {
                 const row = tbody.insertRow();
                 row.insertCell(0).textContent = order.key;
 

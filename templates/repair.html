@@ -238,7 +238,8 @@
                 <select class="metadata-select" id="meta-assignee" onchange="updateRepairUnitField('current_assignee_id', parseInt(this.value) || null)">
                     <option value="">No Assignee</option>
                 </select>
-                <select class="metadata-select" id="meta-type" onchange="updateRepairUnitField('type', this.value)">
+                <span class="metadata-value editable-name" id="meta-type-display" onclick="makeTypeEditable()" style="padding: 8px 12px; min-width: 150px; display: inline-block; cursor: pointer;">-</span>
+                <select class="metadata-select" id="meta-type" onchange="saveType()" style="display: none;">
                     <option value="">Select Type...</option>
                 </select>
                 <select class="metadata-select" id="meta-status" onchange="updateRepairUnitField('current_status_id', parseInt(this.value))">
@@ -426,6 +427,90 @@
         input.replaceWith(span);
     }
 
+    // Make type editable
+    function makeTypeEditable() {
+        const typeDisplay = document.getElementById('meta-type-display');
+        const typeSelect = document.getElementById('meta-type');
+
+        // Hide display, show select
+        typeDisplay.style.display = 'none';
+        typeSelect.style.display = 'inline-block';
+        typeSelect.focus();
+
+        // Add event listener to cancel on Escape
+        const escapeHandler = (e) => {
+            if (e.key === 'Escape') {
+                cancelTypeEdit();
+                typeSelect.removeEventListener('keydown', escapeHandler);
+            }
+        };
+        typeSelect.addEventListener('keydown', escapeHandler);
+
+        // Add blur handler to cancel if clicked outside
+        const blurHandler = () => {
+            setTimeout(() => {
+                if (document.activeElement !== typeSelect) {
+                    cancelTypeEdit();
+                    typeSelect.removeEventListener('blur', blurHandler);
+                }
+            }, 100);
+        };
+        typeSelect.addEventListener('blur', blurHandler);
+    }
+
+    // Cancel type edit
+    function cancelTypeEdit() {
+        const typeDisplay = document.getElementById('meta-type-display');
+        const typeSelect = document.getElementById('meta-type');
+
+        // Restore original value
+        typeSelect.value = typeDisplay.getAttribute('data-current-type') || '';
+
+        // Show display, hide select
+        typeDisplay.style.display = 'inline-block';
+        typeSelect.style.display = 'none';
+    }
+
+    // Save type
+    async function saveType() {
+        const typeDisplay = document.getElementById('meta-type-display');
+        const typeSelect = document.getElementById('meta-type');
+        const newType = typeSelect.value;
+
+        if (!newType) {
+            cancelTypeEdit();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/update-repair-unit/${UNIT_KEY}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ type: newType })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Update display
+                typeDisplay.textContent = newType.charAt(0).toUpperCase() + newType.slice(1);
+                typeDisplay.setAttribute('data-current-type', newType);
+
+                // Show display, hide select
+                typeDisplay.style.display = 'inline-block';
+                typeSelect.style.display = 'none';
+            } else {
+                alert('Error updating type: ' + result.message);
+                cancelTypeEdit();
+            }
+        } catch (error) {
+            alert('Error updating type: ' + error.message);
+            cancelTypeEdit();
+        }
+    }
+
     // Update repair unit field
     async function updateRepairUnitField(fieldName, fieldValue) {
         try {
@@ -496,8 +581,14 @@
             // Populate metadata
             document.getElementById('meta-serial').textContent = unit.serial || '-';
 
-            // Set dropdown values
-            document.getElementById('meta-type').value = unit.type || '';
+            // Set type display and dropdown values
+            const typeDisplay = document.getElementById('meta-type-display');
+            const typeSelect = document.getElementById('meta-type');
+            typeDisplay.textContent = unit.type ? (unit.type.charAt(0).toUpperCase() + unit.type.slice(1)) : '-';
+            typeDisplay.setAttribute('data-current-type', unit.type || '');
+            typeSelect.value = unit.type || '';
+
+            // Set other dropdown values
             document.getElementById('meta-status').value = unit.current_status_id || '';
             document.getElementById('meta-assignee').value = unit.current_assignee_id || '';
 
@@ -573,18 +664,68 @@
                                 commentDiv.style.borderLeft = '3px solid #cf6679';
                                 commentDiv.style.marginBottom = '10px';
                                 commentDiv.style.position = 'relative';
+                                commentDiv.style.display = 'flex';
+                                commentDiv.style.gap = '15px';
 
-                                let content = '';
-                                if (event.assignee) content += `<strong>${event.assignee}</strong><br>`;
-                                if (event.comment) content += `${event.comment}<br>`;
-                                if (event.timestamp) content += `<span style="font-size: 10px; color: #888;">${utcToLocal(event.timestamp)}</span>`;
+                                // Left side: assignee, date, time stacked
+                                const leftDiv = document.createElement('div');
+                                leftDiv.style.display = 'flex';
+                                leftDiv.style.flexDirection = 'column';
+                                leftDiv.style.minWidth = '120px';
+                                leftDiv.style.gap = '2px';
+
+                                if (event.assignee) {
+                                    const assigneeSpan = document.createElement('strong');
+                                    assigneeSpan.textContent = event.assignee;
+                                    leftDiv.appendChild(assigneeSpan);
+                                }
+
+                                if (event.timestamp) {
+                                    const dateTime = new Date(event.timestamp + (event.timestamp.includes('Z') ? '' : 'Z'));
+
+                                    const dateSpan = document.createElement('span');
+                                    dateSpan.style.fontSize = '10px';
+                                    dateSpan.style.color = '#888';
+                                    dateSpan.textContent = dateTime.toLocaleDateString();
+                                    leftDiv.appendChild(dateSpan);
+
+                                    const timeSpan = document.createElement('span');
+                                    timeSpan.style.fontSize = '10px';
+                                    timeSpan.style.color = '#888';
+                                    timeSpan.textContent = dateTime.toLocaleTimeString();
+                                    leftDiv.appendChild(timeSpan);
+                                }
+
+                                // Right side: comment text
+                                const rightDiv = document.createElement('div');
+                                rightDiv.style.flex = '1';
+                                rightDiv.style.fontFamily = 'monospace';
+                                rightDiv.style.whiteSpace = 'pre-wrap';
+                                rightDiv.style.wordWrap = 'break-word';
+                                rightDiv.textContent = event.comment || '';
+
+                                commentDiv.appendChild(leftDiv);
+                                commentDiv.appendChild(rightDiv);
 
                                 // Add delete button if event has an ID
                                 if (event.id) {
-                                    content += `<button class="delete-btn" onclick="deleteEvent('${event.id}')" title="Delete this comment" style="position: absolute; top: 10px; right: 10px; background: none; border: none; color: #ff6b6b; cursor: pointer; font-size: 16px; padding: 5px;">🗑️</button>`;
+                                    const deleteBtn = document.createElement('button');
+                                    deleteBtn.className = 'delete-btn';
+                                    deleteBtn.onclick = () => deleteEvent(event.id);
+                                    deleteBtn.title = 'Delete this comment';
+                                    deleteBtn.style.position = 'absolute';
+                                    deleteBtn.style.top = '10px';
+                                    deleteBtn.style.right = '10px';
+                                    deleteBtn.style.background = 'none';
+                                    deleteBtn.style.border = 'none';
+                                    deleteBtn.style.color = '#ff6b6b';
+                                    deleteBtn.style.cursor = 'pointer';
+                                    deleteBtn.style.fontSize = '16px';
+                                    deleteBtn.style.padding = '5px';
+                                    deleteBtn.textContent = '🗑️';
+                                    commentDiv.appendChild(deleteBtn);
                                 }
 
-                                commentDiv.innerHTML = content;
                                 commentLog.appendChild(commentDiv);
                             });
                         }
