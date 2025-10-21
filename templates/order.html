@@ -332,6 +332,9 @@
                 Hashboard
             </label>
         </div>
+        <select class="metadata-select" id="unit-initial-status" style="min-width: 120px;">
+            <option value="">Loading statuses...</option>
+        </select>
         <button class="add-unit-btn" onclick="addRepairUnit()">Add</button>
     </div>
 </div>
@@ -364,6 +367,7 @@
 
             const statuses = await response.json();
             const statusSelect = document.getElementById('meta-status');
+            const initialStatusSelect = document.getElementById('unit-initial-status');
 
             statusSelect.innerHTML = '';
             statuses.forEach(status => {
@@ -372,6 +376,19 @@
                 option.textContent = status.status;
                 statusSelect.appendChild(option);
             });
+
+            // Populate initial status dropdown for adding units
+            initialStatusSelect.innerHTML = '';
+            statuses.forEach(status => {
+                const option = document.createElement('option');
+                option.value = status.id;
+                option.textContent = status.status;
+                initialStatusSelect.appendChild(option);
+            });
+            // Select the first status by default
+            if (statuses.length > 0) {
+                initialStatusSelect.value = statuses[0].id;
+            }
         } catch (error) {
             console.error('Error loading statuses:', error);
         }
@@ -674,9 +691,24 @@
             return;
         }
 
+        // Check for duplicate serial within this order
+        const existingUnits = await getCurrentOrderUnits();
+        const isDuplicate = existingUnits.some(unit =>
+            unit.serial.toLowerCase() === serial.toLowerCase()
+        );
+
+        if (isDuplicate) {
+            alert('This serial number already exists in this order. Please check the serial and try again.');
+            return;
+        }
+
         // Get selected unit type
         const unitTypeRadio = document.querySelector('input[name="unit-type"]:checked');
         const unitType = unitTypeRadio ? unitTypeRadio.value : 'machine';
+
+        // Get selected initial status
+        const initialStatusSelect = document.getElementById('unit-initial-status');
+        const initialStatusId = initialStatusSelect.value ? parseInt(initialStatusSelect.value) : null;
 
         try {
             const response = await fetch(`/api/add-repair-unit/${ORDER_KEY}`, {
@@ -686,7 +718,8 @@
                 },
                 body: JSON.stringify({
                     serial: serial,
-                    type: unitType
+                    type: unitType,
+                    initial_status_id: initialStatusId
                 })
             });
 
@@ -725,6 +758,18 @@
             }
         } catch (error) {
             alert('Error adding repair unit: ' + error.message);
+        }
+    }
+
+    // Helper function to get current order units for duplicate checking
+    async function getCurrentOrderUnits() {
+        try {
+            const response = await fetch(`/api/repair-units/${ORDER_KEY}`);
+            if (!response.ok) return [];
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching current units:', error);
+            return [];
         }
     }
 

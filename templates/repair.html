@@ -178,6 +178,41 @@
         font-family: inherit;
         outline: none;
     }
+
+    .log-list {
+        width: 95%;
+        min-height: 200px;
+        background-color: #1a1a1a;
+        color: #e0e0e0;
+        border: 1px solid #404040;
+        border-radius: 5px;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    /*override from the main style*/
+    .element-block{
+        width: 1000px;
+    }
+
+    .calc-width-content{
+        width: calc(100% - 22px);
+    }
+
+    #comment-textarea {
+        background-color: #1a1a1a;
+        color: #e0e0e0;
+        border: 1px solid #404040;
+        border-radius: 5px;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 12px;
+        resize: vertical;
+        overflow-y: auto;
+        white-space: pre;
+    }
 </style>
 {% endblock %}
 
@@ -196,7 +231,6 @@
             </div>
             <div class="meta-data-mini">
                 <div>
-                    <span class="metadata-label">Repair Order</span>
                     <span class="metadata-value" id="meta-order">-</span>
                 </div>
             </div>
@@ -227,14 +261,16 @@
 
 
 <div class="element-block">
-    <span>Add Comment</span>
-    <textarea id="comment-textarea" style="width: 95%; height: 200px; background-color: #1a1a1a; color: #e0e0e0; border: 1px solid #404040; border-radius: 5px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical; overflow-y: auto; white-space: pre;"></textarea>
-    <button id="submit-comment-btn" onclick="submitComment()" style="margin-top: 10px; padding: 10px 20px; background-color: #bb86fc; color: #1a1a1a; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background-color 0.3s ease;">Submit</button>
+    <div id="add-comment-block" style="border: 20px;" class = "calc-width-content">
+        <textarea id="comment-textarea" style="width: 100%;" rows="5" placeholder="Type a comment and press Enter to submit (Shift+Enter for new line)"></textarea>
+    </div>
+    <div style="margin-top: 10px;">
+        <div id="comment-log" class="log-list calc-width-content"></div>
+    </div>
 </div>
 
 <div class="element-block">
-    <span>Event Log</span>
-    <div id="events-list" style="width: 95%; min-height: 200px; background-color: #1a1a1a; color: #e0e0e0; border: 1px solid #404040; border-radius: 5px; padding: 10px; display: flex; flex-direction: column; gap: 10px;"></div>
+    <div id="events-list" class="log-list calc-width-content"></div>
 </div>
 
 {% endblock %}
@@ -465,14 +501,37 @@
             document.getElementById('meta-status').value = unit.current_status_id || '';
             document.getElementById('meta-assignee').value = unit.current_assignee_id || '';
 
-            // Create clickable link for repair order
+            // Create clickable link for repair order with order name
             const orderElement = document.getElementById('meta-order');
             if (unit.repair_order_key) {
-                const orderLink = document.createElement('a');
-                orderLink.href = `/order?key=${unit.repair_order_key}`;
-                orderLink.textContent = unit.repair_order_key;
-                orderElement.innerHTML = '';
-                orderElement.appendChild(orderLink);
+                try {
+                    // Fetch the order metadata to get the order name
+                    const orderResponse = await fetch(`/api/repair-order/${unit.repair_order_key}`);
+                    if (orderResponse.ok) {
+                        const orderData = await orderResponse.json();
+                        const orderLink = document.createElement('a');
+                        orderLink.href = `/order?key=${unit.repair_order_key}`;
+                        orderLink.textContent = orderData.name;
+                        orderLink.style.fontSize = '16px';
+                        orderElement.innerHTML = '';
+                        orderElement.appendChild(orderLink);
+                    } else {
+                        // Fallback to showing the key if we can't fetch the name
+                        const orderLink = document.createElement('a');
+                        orderLink.href = `/order?key=${unit.repair_order_key}`;
+                        orderLink.textContent = unit.repair_order_key;
+                        orderElement.innerHTML = '';
+                        orderElement.appendChild(orderLink);
+                    }
+                } catch (error) {
+                    console.error('Error fetching order name:', error);
+                    // Fallback to showing the key if there's an error
+                    const orderLink = document.createElement('a');
+                    orderLink.href = `/order?key=${unit.repair_order_key}`;
+                    orderLink.textContent = unit.repair_order_key;
+                    orderElement.innerHTML = '';
+                    orderElement.appendChild(orderLink);
+                }
             } else {
                 orderElement.textContent = '-';
             }
@@ -480,9 +539,11 @@
             document.getElementById('meta-created').textContent = utcToLocal(unit.created);
             document.getElementById('meta-updated').textContent = utcToLocal(unit.updated_at);
 
-            // Display events data as formatted list
+            // Display events data
             const eventsList = document.getElementById('events-list');
+            const commentLog = document.getElementById('comment-log');
             eventsList.innerHTML = ''; // Clear existing content
+            commentLog.innerHTML = ''; // Clear existing comments
 
             if (unit.events_json) {
                 try {
@@ -491,45 +552,90 @@
 
                     if (events.length === 0) {
                         eventsList.innerHTML = '<span style="color: #888;">No events recorded</span>';
+                        commentLog.innerHTML = '<span style="color: #888;">No comments yet</span>';
                     } else {
-                        events.forEach(event => {
-                            const eventSpan = document.createElement('span');
-                            eventSpan.style.padding = '10px';
-                            eventSpan.style.backgroundColor = '#2a2a2a';
-                            eventSpan.style.borderRadius = '5px';
-                            eventSpan.style.borderLeft = '3px solid #bb86fc';
+                        // Reverse events to show newest first
+                        const reversedEvents = [...events].reverse();
 
-                            let content = '';
+                        // Separate comments from other events
+                        const comments = reversedEvents.filter(e => e.type === 'comment');
+                        const otherEvents = reversedEvents.filter(e => e.type !== 'comment');
 
-                            if (event.type === 'repair') {
-                                content = `<strong style="color: #bb86fc;">REPAIR</strong><br>`;
-                                if (event.assignee) content += `Assignee: ${event.assignee}<br>`;
-                                if (event.timestamp) content += `Time: ${utcToLocal(event.timestamp)}<br>`;
-                                if (event.comment) content += `Comment: ${event.comment}<br>`;
-                                if (event.components && event.components.length > 0) {
-                                    content += `Components: ${event.components.join(', ')}`;
+                        // Display comments in comment-log
+                        if (comments.length === 0) {
+                            commentLog.innerHTML = '<span style="color: #888;">No comments yet</span>';
+                        } else {
+                            comments.forEach(event => {
+                                const commentDiv = document.createElement('div');
+                                commentDiv.style.padding = '10px';
+                                commentDiv.style.backgroundColor = '#2a2a2a';
+                                commentDiv.style.borderRadius = '5px';
+                                commentDiv.style.borderLeft = '3px solid #cf6679';
+                                commentDiv.style.marginBottom = '10px';
+                                commentDiv.style.position = 'relative';
+
+                                let content = '';
+                                if (event.assignee) content += `<strong>${event.assignee}</strong><br>`;
+                                if (event.comment) content += `${event.comment}<br>`;
+                                if (event.timestamp) content += `<span style="font-size: 10px; color: #888;">${utcToLocal(event.timestamp)}</span>`;
+
+                                // Add delete button if event has an ID
+                                if (event.id) {
+                                    content += `<button class="delete-btn" onclick="deleteEvent('${event.id}')" title="Delete this comment" style="position: absolute; top: 10px; right: 10px; background: none; border: none; color: #ff6b6b; cursor: pointer; font-size: 16px; padding: 5px;">🗑️</button>`;
                                 }
-                            } else if (event.type === 'status') {
-                                content = `<strong style="color: #03dac6;">STATUS</strong><br>`;
-                                if (event.assignee) content += `Assignee: ${event.assignee}<br>`;
-                                if (event.timestamp) content += `Time: ${utcToLocal(event.timestamp)}<br>`;
-                                if (event.status) content += `Status: ${event.status}`;
-                            } else if (event.type === 'comment') {
-                                content = `<strong style="color: #cf6679;">COMMENT</strong><br>`;
-                                if (event.assignee) content += `Assignee: ${event.assignee}<br>`;
-                                if (event.timestamp) content += `Time: ${utcToLocal(event.timestamp)}<br>`;
-                                if (event.comment) content += `Comment: ${event.comment}`;
-                            }
 
-                            eventSpan.innerHTML = content;
-                            eventsList.appendChild(eventSpan);
-                        });
+                                commentDiv.innerHTML = content;
+                                commentLog.appendChild(commentDiv);
+                            });
+                        }
+
+                        // Display other events in events-list
+                        if (otherEvents.length === 0) {
+                            eventsList.innerHTML = '<span style="color: #888;">No events recorded</span>';
+                        } else {
+                            otherEvents.forEach(event => {
+                                const eventSpan = document.createElement('span');
+                                eventSpan.style.padding = '10px';
+                                eventSpan.style.backgroundColor = '#2a2a2a';
+                                eventSpan.style.borderRadius = '5px';
+                                eventSpan.style.borderLeft = '3px solid #bb86fc';
+                                eventSpan.style.position = 'relative';
+                                eventSpan.style.display = 'block';
+
+                                let content = '';
+
+                                if (event.type === 'repair') {
+                                    content = `<strong style="color: #bb86fc;">REPAIR</strong><br>`;
+                                    if (event.assignee) content += `Assignee: ${event.assignee}<br>`;
+                                    if (event.timestamp) content += `Time: ${utcToLocal(event.timestamp)}<br>`;
+                                    if (event.comment) content += `Comment: ${event.comment}<br>`;
+                                    if (event.components && event.components.length > 0) {
+                                        content += `Components: ${event.components.join(', ')}`;
+                                    }
+                                } else if (event.type === 'status') {
+                                    content = `<strong style="color: #03dac6;">STATUS</strong><br>`;
+                                    if (event.assignee) content += `Assignee: ${event.assignee}<br>`;
+                                    if (event.timestamp) content += `Time: ${utcToLocal(event.timestamp)}<br>`;
+                                    if (event.status) content += `Status: ${event.status}`;
+                                }
+
+                                // Add delete button if event has an ID
+                                if (event.id) {
+                                    content += `<button class="delete-btn" onclick="deleteEvent('${event.id}')" title="Delete this event" style="position: absolute; top: 10px; right: 10px; background: none; border: none; color: #ff6b6b; cursor: pointer; font-size: 16px; padding: 5px;">🗑️</button>`;
+                                }
+
+                                eventSpan.innerHTML = content;
+                                eventsList.appendChild(eventSpan);
+                            });
+                        }
                     }
                 } catch (e) {
                     eventsList.innerHTML = '<span style="color: #ff6b6b;">Invalid events data format</span>';
+                    commentLog.innerHTML = '<span style="color: #ff6b6b;">Invalid events data format</span>';
                 }
             } else {
                 eventsList.innerHTML = '<span style="color: #888;">No events data</span>';
+                commentLog.innerHTML = '<span style="color: #888;">No comments yet</span>';
             }
 
             document.getElementById('metadata-loading').style.display = 'none';
@@ -572,6 +678,30 @@
             }
         } catch (error) {
             alert('Error deleting repair unit: ' + error.message);
+        }
+    }
+
+    // Delete event from event log
+    async function deleteEvent(eventId) {
+        if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/delete-event/${UNIT_KEY}/${eventId}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Reload the unit metadata to refresh the event log
+                await loadUnitMetadata();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error deleting event: ' + error.message);
         }
     }
 
@@ -624,6 +754,16 @@
         await loadDropdownOptions();
         // Then load unit metadata which will set the selected values
         await loadUnitMetadata();
+
+        // Add Enter key handler for comment textarea
+        const commentTextarea = document.getElementById('comment-textarea');
+        commentTextarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent new line
+                submitComment();
+            }
+            // If Shift+Enter, allow default behavior (new line)
+        });
     });
 </script>
 {% endblock %}

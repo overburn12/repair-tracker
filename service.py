@@ -424,6 +424,7 @@ class DatabaseService:
             dict with success status and message
         """
         import json
+        import uuid
         from datetime import datetime
 
         session = self.get_session()
@@ -458,9 +459,10 @@ class DatabaseService:
             else:
                 events_data = {"events": []}
 
-            # Create the new event
+            # Create the new event with unique ID
             timestamp = datetime.now().isoformat()
             new_event = {
+                "id": str(uuid.uuid4()),
                 "type": event_type,
                 "assignee": assignee.name,
                 "timestamp": timestamp
@@ -491,6 +493,67 @@ class DatabaseService:
         except Exception as e:
             session.rollback()
             return {'success': False, 'message': f"Error adding event: {str(e)}"}
+        finally:
+            session.close()
+
+    def delete_event_from_repair_unit(self, unit_key, event_id):
+        """Delete an event from a repair unit's events_json field by event ID.
+
+        Args:
+            unit_key: The repair unit key (e.g., 'RU-1423')
+            event_id: The unique ID of the event to delete
+
+        Returns:
+            dict with success status and message
+        """
+        import json
+
+        session = self.get_session()
+        try:
+            # Parse the unit key
+            prefix, unit_id = self._parse_key(unit_key)
+
+            if prefix != 'RU':
+                return {'success': False, 'message': f"Expected RU key, got: {unit_key}"}
+
+            # Find the repair unit
+            unit = session.query(RepairUnit).filter(RepairUnit.id == unit_id).first()
+            if not unit:
+                return {'success': False, 'message': f"Repair unit with key '{unit_key}' not found"}
+
+            # Parse existing events_json
+            if not unit.events_json:
+                return {'success': False, 'message': 'No events found for this repair unit'}
+
+            try:
+                events_data = json.loads(unit.events_json)
+            except json.JSONDecodeError:
+                return {'success': False, 'message': 'Invalid events data format'}
+
+            if 'events' not in events_data:
+                return {'success': False, 'message': 'No events found in events data'}
+
+            # Find and remove the event with the matching ID
+            original_count = len(events_data['events'])
+            events_data['events'] = [event for event in events_data['events'] if event.get('id') != event_id]
+            new_count = len(events_data['events'])
+
+            if original_count == new_count:
+                return {'success': False, 'message': f"Event with ID '{event_id}' not found"}
+
+            # Update the repair unit
+            unit.events_json = json.dumps(events_data)
+            session.commit()
+
+            return {
+                'success': True,
+                'message': f"Event deleted from repair unit '{unit_key}'"
+            }
+        except ValueError as e:
+            return {'success': False, 'message': str(e)}
+        except Exception as e:
+            session.rollback()
+            return {'success': False, 'message': f"Error deleting event: {str(e)}"}
         finally:
             session.close()
 
@@ -799,17 +862,22 @@ class DatabaseService:
         finally:
             session.close()
 
-    def add_repair_unit(self, order_key, serial, unit_type):
+    def add_repair_unit(self, order_key, serial, unit_type, initial_status_id=None):
         """Add a new repair unit to a repair order.
 
         Args:
             order_key: The repair order key (e.g., 'RO-1')
             serial: Serial number of the unit
             unit_type: Type of unit ('machine' or 'hashboard')
+            initial_status_id: Optional initial status ID (defaults to first status)
 
         Returns:
             dict with success status and message
         """
+        import json
+        import uuid
+        from datetime import datetime
+
         session = self.get_session()
         try:
             # Parse the order key
@@ -827,19 +895,36 @@ class DatabaseService:
             if unit_type not in ['machine', 'hashboard']:
                 return {'success': False, 'message': f"Invalid unit type: {unit_type}. Must be 'machine' or 'hashboard'"}
 
-            # Get the first status (default status)
-            default_status = session.query(Status).order_by(Status.id).first()
-            if not default_status:
-                return {'success': False, 'message': 'No default status found. Please create a status first.'}
+            # Determine the initial status
+            if initial_status_id:
+                initial_status = session.query(Status).filter(Status.id == initial_status_id).first()
+                if not initial_status:
+                    return {'success': False, 'message': f'Status ID {initial_status_id} not found'}
+            else:
+                # Get the first status (default status)
+                initial_status = session.query(Status).order_by(Status.id).first()
+                if not initial_status:
+                    return {'success': False, 'message': 'No default status found. Please create a status first.'}
+
+            # Create initial status event with unique ID
+            timestamp = datetime.now().isoformat()
+            initial_event = {
+                "id": str(uuid.uuid4()),
+                "type": "status",
+                "assignee": "System",
+                "timestamp": timestamp,
+                "status": initial_status.status
+            }
+            events_data = {"events": [initial_event]}
 
             # Create new repair unit
             new_unit = RepairUnit(
                 serial=serial,
                 type=UnitType(unit_type),
                 repair_order_id=order_id,
-                current_status_id=default_status.id,
+                current_status_id=initial_status.id,
                 current_assignee_id=None,
-                events_json=None
+                events_json=json.dumps(events_data)
             )
             session.add(new_unit)
             session.commit()

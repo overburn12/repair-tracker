@@ -259,6 +259,7 @@ def api_add_repair_unit(order_key):
         data = request.get_json()
         serial = data.get('serial')
         unit_type = data.get('type')
+        initial_status_id = data.get('initial_status_id')
 
         if not serial or not serial.strip():
             return jsonify({'success': False, 'message': 'Serial number is required'}), 400
@@ -266,7 +267,7 @@ def api_add_repair_unit(order_key):
         if not unit_type:
             return jsonify({'success': False, 'message': 'Unit type is required'}), 400
 
-        result = db_service.add_repair_unit(order_key, serial.strip(), unit_type)
+        result = db_service.add_repair_unit(order_key, serial.strip(), unit_type, initial_status_id)
         status_code = 200 if result['success'] else 400
         return jsonify(result), status_code
     except Exception as e:
@@ -347,6 +348,17 @@ def api_add_status_event(unit_key):
             assignee_key=assignee_key,
             status_name=status_name
         )
+        status_code = 200 if result['success'] else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/delete-event/<unit_key>/<event_id>', methods=['DELETE'])
+def api_delete_event(unit_key, event_id):
+    """Delete an event from a repair unit's event log."""
+    try:
+        result = db_service.delete_event_from_repair_unit(unit_key, event_id)
         status_code = 200 if result['success'] else 400
         return jsonify(result), status_code
     except Exception as e:
