@@ -991,11 +991,10 @@
                 // Wait a brief moment for scanner to finish, then auto-submit
                 inputTimer = setTimeout(() => {
                     addRepairUnit();
+                    // Reset the tracking after auto-submit
+                    inputStartLength = 0;
                 }, 100);
             }
-
-            // Update the start length for next input event
-            inputStartLength = currentLength;
         });
     });
 </script>
