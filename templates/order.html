@@ -3,6 +3,7 @@
 {% block title %}Order Details{% endblock %}
 
 {% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
     table {
         width: 100%;
@@ -12,9 +13,55 @@
     }
 
     th, td {
-        padding: 12px;
+        padding: 8px;
         text-align: left;
         border: 1px solid #404040;
+        position: relative;
+        height: 36px;
+        max-height: 36px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .date-cell {
+        font-size: 11px;
+        color: #888888;
+    }
+
+    .delete-column {
+        width: 80px;
+        min-width: 80px;
+        max-width: 80px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .delete-column.visible {
+        opacity: 1;
+    }
+
+    th {
+        user-select: none;
+    }
+
+    .resizer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 5px;
+        height: 100%;
+        cursor: col-resize;
+        user-select: none;
+        background: transparent;
+    }
+
+    .resizer:hover {
+        background: #bb86fc;
+    }
+
+    .resizing {
+        background: #bb86fc;
     }
 
     th {
@@ -126,8 +173,15 @@
         cursor: pointer;
         font-size: 16px;
         padding: 10px;
-        transition: color 0.3s ease;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, color 0.3s ease;
         float: right;
+    }
+
+    .delete-order-btn.visible {
+        opacity: 1;
+        pointer-events: auto;
     }
 
     .delete-order-btn:hover {
@@ -222,7 +276,14 @@
         cursor: pointer;
         font-size: 18px;
         padding: 5px;
-        transition: color 0.3s ease;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, color 0.3s ease;
+    }
+
+    .delete-unit-btn.visible {
+        opacity: 1;
+        pointer-events: auto;
     }
 
     .delete-unit-btn:hover {
@@ -251,6 +312,170 @@
         font-family: inherit;
         outline: none;
     }
+
+    /* Editable status styles */
+    .editable-status {
+        cursor: pointer;
+        padding: 5px;
+        border-radius: 3px;
+        transition: background-color 0.2s ease;
+    }
+
+    .editable-status:hover {
+        background-color: rgba(187, 134, 252, 0.2);
+    }
+
+    .editable-status-select {
+        font-size: inherit;
+        padding: 5px;
+        background-color: #353535;
+        border: 2px solid #bb86fc;
+        border-radius: 3px;
+        color: #e0e0e0;
+        font-family: inherit;
+        outline: none;
+    }
+
+        .two-column-container {
+        display: flex;
+        gap: 30px;
+    }
+
+    .column {
+        flex: 1;
+    }
+
+    .column-divider {
+        width: 2px;
+        background: linear-gradient(to bottom, transparent, #404040 20%, #404040 80%, transparent);
+        margin: 0 10px;
+    }
+
+    .analytics-section h3 {
+        color: #bb86fc;
+        margin-top: 0;
+        margin-bottom: 15px;
+        font-size: 16px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .analytics-subsection {
+        margin-bottom: 20px;
+    }
+
+    .analytics-subsection-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        padding-bottom: 5px;
+        border-bottom: 1px solid #404040;
+    }
+
+    .analytics-subsection-title {
+        color: #bb86fc;
+        font-size: 14px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    .analytics-subsection-total {
+        color: #bb86fc;
+        font-size: 14px;
+        font-weight: bold;
+        padding-left: 10px;
+    }
+
+    .analytics-status-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 12px;
+        margin-bottom: 4px;
+        background-color: #353535;
+        border-radius: 3px;
+    }
+
+    .analytics-status-label {
+        color: #c0c0c0;
+        font-size: 13px;
+    }
+
+    .analytics-status-value {
+        color: #e0e0e0;
+        font-weight: bold;
+        font-size: 13px;
+        padding-left: 10px;
+    }
+
+    /* Scrollable and resizable container styles */
+    .scrollable-units-container {
+        position: relative;
+        min-height: 400px;
+        max-height: 600px;
+        height: 500px;
+        display: flex;
+        flex-direction: column;
+        resize: both;
+        overflow: hidden;
+        border: 2px solid #404040;
+        border-radius: 5px;
+    }
+
+    .units-content-wrapper {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 10px;
+    }
+
+    .units-content-wrapper::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    .units-content-wrapper::-webkit-scrollbar-track {
+        background: #1a1a1a;
+        border-radius: 5px;
+    }
+
+    .units-content-wrapper::-webkit-scrollbar-thumb {
+        background: #bb86fc;
+        border-radius: 5px;
+    }
+
+    .units-content-wrapper::-webkit-scrollbar-thumb:hover {
+        background: #9965d4;
+    }
+
+    .resize-handle {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 20px;
+        height: 20px;
+        cursor: nwse-resize;
+        background: linear-gradient(135deg, transparent 50%, #bb86fc 50%);
+        border-bottom-right-radius: 5px;
+    }
+
+    .duplicate-message {
+        color: #ff6b6b;
+        font-size: 14px;
+        padding: 8px 12px;
+        background-color: rgba(255, 107, 107, 0.1);
+        border: 1px solid #ff6b6b;
+        border-radius: 5px;
+        animation: fadeIn 0.3s ease-in;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    #units-table {
+        margin-top: 0;
+    }
 </style>
 {% endblock %}
 
@@ -261,39 +486,76 @@
         <span id="order-name-title" class="editable-name" style="font-size: 2em;" onclick="makeOrderNameEditable()"><!--order name goes here as text--></span>
         <button class="delete-order-btn" onclick="deleteRepairOrder()" title="Delete this repair order" style="display: none;" id="delete-order-btn">🗑️</button>
     </div>
+    
     <div id="metadata-loading" class="loading">Loading order details...</div>
     <div id="metadata-error" class="error-message" style="display: none;"></div>
+    
     <div id="metadata-content" style="display: none;">
-        <div class="metadata">
-            <div class="meta-data-mini">
-                <div class="metadata-item">
-                    <span class="metadata-label">Status</span>
-                    <select class="metadata-select" id="meta-status">
-                        <option value="">Loading...</option>
-                    </select>
-                </div>
-                <div class="metadata-item">
-                    <span class="metadata-label">Created</span>
-                    <input type="date" class="metadata-input" id="meta-created" readonly>
-                </div>
-            </div>
-            <div class="metadata-item">
-                <span class="metadata-label">Summary</span>
-                <textarea class="metadata-textarea" rows="8" id="meta-summary" placeholder="Enter order summary or notes..."></textarea>
-            </div>
-            <div class="meta-data-mini">
-                <div class="metadata-item">
-                    <span class="metadata-label">Received</span>
-                    <div class="date-input-container">
-                        <input type="date" class="metadata-input" id="meta-received">
-                        <button class="clear-date-btn" onclick="clearDate('received')" title="Clear received date">🗑️</button>
+        <div class="two-column-container">
+            <!-- Left Column: Existing Metadata -->
+            <div class="column">
+                <div class="metadata">
+                    <div class="meta-data-mini">
+                        <div class="metadata-item">
+                            <span class="metadata-label">Status</span>
+                            <select class="metadata-select" id="meta-status">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                        <div class="metadata-item">
+                            <span class="metadata-label">Created</span>
+                            <input type="date" class="metadata-input" id="meta-created" readonly>
+                        </div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Summary</span>
+                        <textarea class="metadata-textarea" rows="8" id="meta-summary" placeholder="Enter order summary or notes..."></textarea>
+                    </div>
+                    <div class="meta-data-mini">
+                        <div class="metadata-item">
+                            <span class="metadata-label">Received</span>
+                            <div class="date-input-container">
+                                <input type="date" class="metadata-input" id="meta-received">
+                                <button class="clear-date-btn" onclick="clearDate('received')" title="Clear received date">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="metadata-item">
+                            <span class="metadata-label">Finished</span>
+                            <div class="date-input-container">
+                                <input type="date" class="metadata-input" id="meta-finished">
+                                <button class="clear-date-btn" onclick="clearDate('finished')" title="Clear finished date">🗑️</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="metadata-item">
-                    <span class="metadata-label">Finished</span>
-                    <div class="date-input-container">
-                        <input type="date" class="metadata-input" id="meta-finished">
-                        <button class="clear-date-btn" onclick="clearDate('finished')" title="Clear finished date">🗑️</button>
+            </div>
+
+            <!-- Divider -->
+            <div class="column-divider"></div>
+
+            <!-- Right Column: Analytics -->
+            <div class="column analytics-section">
+                <h3>Analytics</h3>
+
+                <!-- Hashboards Section -->
+                <div class="analytics-subsection">
+                    <div class="analytics-subsection-header">
+                        <span class="analytics-subsection-title">Hashboards</span>
+                        <span class="analytics-subsection-total" id="analytics-hashboards-total">(0)</span>
+                    </div>
+                    <div id="analytics-hashboards-statuses">
+                        <!-- Status counts will be dynamically inserted here -->
+                    </div>
+                </div>
+
+                <!-- Machines Section -->
+                <div class="analytics-subsection">
+                    <div class="analytics-subsection-header">
+                        <span class="analytics-subsection-title">Machines</span>
+                        <span class="analytics-subsection-total" id="analytics-machines-total">(0)</span>
+                    </div>
+                    <div id="analytics-machines-statuses">
+                        <!-- Status counts will be dynamically inserted here -->
                     </div>
                 </div>
             </div>
@@ -302,24 +564,34 @@
 </div>
 
 <div class="element-block">
-    <div id="units-loading" class="loading">Loading repair units...</div>
-    <div id="units-error" class="error-message" style="display: none;"></div>
-    <table id="units-table" style="display: none;">
-        <thead>
-            <tr>
-                <th>Key</th>
-                <th>Serial</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Assignee</th>
-                <th>Created</th>
-                <th>Updated</th>
-                <th>Delete</th>
-            </tr>
-        </thead>
-        <tbody id="units-tbody">
-        </tbody>
-    </table>
+    <h2 style="margin-bottom: 15px;">Status Timeline</h2>
+    <canvas id="timeline-chart" style="max-height: 400px;"></canvas>
+</div>
+
+<div class="element-block">
+    <div class="scrollable-units-container">  <!-- NEW WRAPPER -->
+        <div class="units-content-wrapper">  <!-- NEW SCROLLABLE WRAPPER -->
+            <div id="units-loading" class="loading">Loading repair units...</div>
+            <div id="units-error" class="error-message" style="display: none;"></div>
+            <table id="units-table" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Key</th>
+                        <th>Serial</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Assignee</th>
+                        <th>Created</th>
+                        <th>Updated</th>
+                        <th class="delete-column">Delete</th>
+                    </tr>
+                </thead>
+                <tbody id="units-tbody">
+                </tbody>
+            </table>
+        </div>
+        <div class="resize-handle" title="Drag to resize"></div>  <!-- NEW RESIZE HANDLE -->
+    </div>
     <div class="add-unit-container">
         <input type="text" class="add-unit-input" id="unit-serial-input" placeholder="Enter serial number">
         <div class="add-unit-radio-group">
@@ -337,6 +609,8 @@
         </select>
         <button class="add-unit-btn" onclick="addRepairUnit()">Add</button>
     </div>
+    <div id="duplicate-message" class="duplicate-message" style="display: none;"></div>
+    <div class="add-unit-radio-group">
 </div>
 
 {% endblock %}
@@ -359,6 +633,9 @@
     // Barcode scanner state tracking
     let inputStartLength = 0;
 
+    // Store all statuses globally for dropdown creation
+    let allStatuses = [];
+
     // Load statuses for dropdown
     async function loadStatuses() {
         try {
@@ -366,6 +643,7 @@
             if (!response.ok) throw new Error('Failed to load statuses');
 
             const statuses = await response.json();
+            allStatuses = statuses; // Store globally for use in edit dropdowns
             const statusSelect = document.getElementById('meta-status');
             const initialStatusSelect = document.getElementById('unit-initial-status');
 
@@ -698,7 +976,15 @@
         );
 
         if (isDuplicate) {
-            alert('This serial number already exists in this order. Please check the serial and try again.');
+            const messageDiv = document.getElementById('duplicate-message');
+            messageDiv.textContent = 'Duplicate serial number! This serial already exists in this order.';
+            messageDiv.style.display = 'block';
+            
+            // Clear the message after 2 seconds
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 2000);
+            
             return;
         }
 
@@ -753,6 +1039,12 @@
 
                 // Reload repair units table without reloading the whole page
                 await loadRepairUnits();
+
+                // Auto-scroll to bottom after adding unit
+                const contentWrapper = document.querySelector('.units-content-wrapper');
+                if (contentWrapper) {
+                    contentWrapper.scrollTop = contentWrapper.scrollHeight;
+                }
             } else {
                 alert('Error: ' + result.message);
             }
@@ -867,12 +1159,113 @@
         input.replaceWith(span);
     }
 
-    // Delete repair unit
-    async function deleteRepairUnit(unitKey) {
-        if (!confirm(`Are you sure you want to delete repair unit ${unitKey}? This action cannot be undone.`)) {
-            return;
+    // Make unit status editable
+    function makeUnitStatusEditable(statusSpan, unitKey, currentStatusId, assigneeKey) {
+        const currentStatusText = statusSpan.textContent;
+
+        // Create select element
+        const select = document.createElement('select');
+        select.className = 'editable-status-select';
+
+        // Populate with all statuses
+        allStatuses.forEach(status => {
+            const option = document.createElement('option');
+            option.value = status.id;
+            option.textContent = status.status;
+            if (status.id === currentStatusId) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+
+        // Replace span with select
+        statusSpan.replaceWith(select);
+        select.focus();
+
+        // Track if we've already saved to prevent double-save
+        let hasBeenSaved = false;
+
+        // Handle change event (user selects a new status)
+        select.addEventListener('change', async () => {
+            if (!hasBeenSaved) {
+                hasBeenSaved = true;
+                await saveUnitStatus(select, unitKey, currentStatusText, currentStatusId, assigneeKey);
+            }
+        });
+
+        // Handle blur (when user clicks away without changing)
+        select.addEventListener('blur', async () => {
+            if (!hasBeenSaved) {
+                // User clicked away without changing, just cancel
+                cancelUnitStatusEdit(select, unitKey, currentStatusText, currentStatusId, assigneeKey);
+            }
+        });
+
+        // Handle escape key
+        select.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                hasBeenSaved = true; // Prevent blur from triggering
+                cancelUnitStatusEdit(select, unitKey, currentStatusText, currentStatusId, assigneeKey);
+            }
+        });
+    }
+
+    // Save unit status
+    async function saveUnitStatus(select, unitKey, originalStatusText, originalStatusId, assigneeKey) {
+        const newStatusId = parseInt(select.value);
+        const newStatusText = select.options[select.selectedIndex].text;
+
+        // Create span element
+        const span = document.createElement('span');
+        span.className = 'editable-status';
+        span.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            makeUnitStatusEditable(span, unitKey, newStatusId, assigneeKey);
+        };
+
+        // Update in database (service.py will automatically log the status change)
+        try {
+            const response = await fetch(`/api/update-repair-unit/${unitKey}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ current_status_id: newStatusId })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                span.textContent = newStatusText;
+            } else {
+                span.textContent = originalStatusText;
+                alert('Error updating status: ' + result.message);
+            }
+        } catch (error) {
+            span.textContent = originalStatusText;
+            alert('Error updating status: ' + error.message);
         }
 
+        select.replaceWith(span);
+    }
+
+    // Cancel unit status edit
+    function cancelUnitStatusEdit(select, unitKey, originalStatusText, originalStatusId, assigneeKey) {
+        const span = document.createElement('span');
+        span.className = 'editable-status';
+        span.textContent = originalStatusText;
+        span.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            makeUnitStatusEditable(span, unitKey, originalStatusId, assigneeKey);
+        };
+        select.replaceWith(span);
+    }
+
+    // Delete repair unit (no confirmation - shift key required to see button)
+    async function deleteRepairUnit(unitKey) {
         try {
             const response = await fetch(`/api/delete-repair-unit/${unitKey}`, {
                 method: 'DELETE'
@@ -938,13 +1331,33 @@
 
 
                     row.insertCell(2).textContent = unit.type || '-';
-                    row.insertCell(3).textContent = unit.current_status || '-';
+
+                    // Column 3: Status (Editable)
+                    const statusCell = row.insertCell(3);
+                    const statusSpan = document.createElement('span');
+                    statusSpan.className = 'editable-status';
+                    statusSpan.textContent = unit.current_status || '-';
+                    statusSpan.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        makeUnitStatusEditable(statusSpan, unit.key, unit.status_id, unit.assignee_key);
+                    };
+                    statusCell.appendChild(statusSpan);
+
                     row.insertCell(4).textContent = unit.current_assignee || '-';
-                    row.insertCell(5).textContent = utcToLocal(unit.created);
-                    row.insertCell(6).textContent = utcToLocal(unit.updated_at);
+
+                    // Date columns with smaller, grayed styling
+                    const createdCell = row.insertCell(5);
+                    createdCell.textContent = utcToLocal(unit.created);
+                    createdCell.className = 'date-cell';
+
+                    const updatedCell = row.insertCell(6);
+                    updatedCell.textContent = utcToLocal(unit.updated_at);
+                    updatedCell.className = 'date-cell';
 
                     // Add delete button
                     const deleteCell = row.insertCell(7);
+                    deleteCell.className = 'delete-column';
                     const deleteBtn = document.createElement('button');
                     deleteBtn.className = 'delete-unit-btn';
                     deleteBtn.textContent = '🗑️';
@@ -956,6 +1369,12 @@
 
             document.getElementById('units-loading').style.display = 'none';
             document.getElementById('units-table').style.display = 'table';
+
+            // Make columns resizable after table is populated
+            makeColumnsResizable();
+
+            // Update analytics after units are loaded
+            updateAnalytics();
         } catch (error) {
             document.getElementById('units-loading').style.display = 'none';
             const errorDiv = document.getElementById('units-error');
@@ -964,10 +1383,93 @@
         }
     }
 
+    // Track shift key state for delete button visibility
+    let isShiftPressed = false;
+
+    // Handle shift key press/release globally
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift' && !isShiftPressed) {
+            isShiftPressed = true;
+            toggleDeleteButtons(true);
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        if (e.key === 'Shift') {
+            isShiftPressed = false;
+            toggleDeleteButtons(false);
+        }
+    });
+
+    // Toggle visibility of all delete buttons and delete column
+    function toggleDeleteButtons(show) {
+        const deleteButtons = document.querySelectorAll('.delete-unit-btn, .delete-order-btn');
+        const deleteColumns = document.querySelectorAll('.delete-column');
+
+        deleteButtons.forEach(btn => {
+            if (show) {
+                btn.classList.add('visible');
+            } else {
+                btn.classList.remove('visible');
+            }
+        });
+
+        deleteColumns.forEach(col => {
+            if (show) {
+                col.classList.add('visible');
+            } else {
+                col.classList.remove('visible');
+            }
+        });
+    }
+
+    // Make table columns resizable
+    function makeColumnsResizable() {
+        const table = document.getElementById('units-table');
+        if (!table) return;
+
+        const headers = table.querySelectorAll('th');
+        headers.forEach((header, index) => {
+            // Don't add resizer to the last column
+            if (index === headers.length - 1) return;
+
+            // Create resizer element
+            const resizer = document.createElement('div');
+            resizer.className = 'resizer';
+            header.appendChild(resizer);
+
+            let startX, startWidth;
+
+            resizer.addEventListener('mousedown', (e) => {
+                startX = e.pageX;
+                startWidth = header.offsetWidth;
+                resizer.classList.add('resizing');
+
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+
+                e.preventDefault();
+            });
+
+            function handleMouseMove(e) {
+                const width = startWidth + (e.pageX - startX);
+                header.style.width = width + 'px';
+                header.style.minWidth = width + 'px';
+            }
+
+            function handleMouseUp() {
+                resizer.classList.remove('resizing');
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+            }
+        });
+    }
+
     // Load data when page loads
     window.addEventListener('DOMContentLoaded', () => {
         loadOrderMetadata();
         loadRepairUnits();
+        loadTimelineChart();
 
         // Setup barcode scanner auto-submit functionality
         const serialInput = document.getElementById('unit-serial-input');
@@ -996,6 +1498,234 @@
                 }, 100);
             }
         });
+
+        // Add unit when Enter key is pressed
+        serialInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addRepairUnit();
+            }
+        });
     });
+
+
+    // Function to calculate and display analytics grouped by type and status
+    async function updateAnalytics() {
+        try {
+            const response = await fetch(`/api/repair-units/${ORDER_KEY}`);
+            if (!response.ok) return;
+
+            const units = await response.json();
+
+            // Group units by type
+            const hashboardUnits = units.filter(u => u.type === 'hashboard');
+            const machineUnits = units.filter(u => u.type === 'machine');
+
+            // Count by status for each type
+            const hashboardCounts = {};
+            const machineCounts = {};
+
+            hashboardUnits.forEach(unit => {
+                const status = unit.current_status || 'Unknown';
+                hashboardCounts[status] = (hashboardCounts[status] || 0) + 1;
+            });
+
+            machineUnits.forEach(unit => {
+                const status = unit.current_status || 'Unknown';
+                machineCounts[status] = (machineCounts[status] || 0) + 1;
+            });
+
+            // Update hashboards section
+            const hashboardTotal = hashboardUnits.length;
+            document.getElementById('analytics-hashboards-total').textContent = `(${hashboardTotal})`;
+
+            const hashboardStatusesDiv = document.getElementById('analytics-hashboards-statuses');
+            hashboardStatusesDiv.innerHTML = '';
+
+            if (hashboardTotal === 0) {
+                hashboardStatusesDiv.innerHTML = '<div class="analytics-status-item"><span class="analytics-status-label" style="font-style: italic; color: #888;">No hashboards</span></div>';
+            } else {
+                // Sort statuses by count (descending)
+                const sortedHashboardStatuses = Object.entries(hashboardCounts).sort((a, b) => b[1] - a[1]);
+                sortedHashboardStatuses.forEach(([status, count]) => {
+                    const item = document.createElement('div');
+                    item.className = 'analytics-status-item';
+                    item.innerHTML = `
+                        <span class="analytics-status-label">${status}</span>
+                        <span class="analytics-status-value">${count}</span>
+                    `;
+                    hashboardStatusesDiv.appendChild(item);
+                });
+            }
+
+            // Update machines section
+            const machineTotal = machineUnits.length;
+            document.getElementById('analytics-machines-total').textContent = `(${machineTotal})`;
+
+            const machineStatusesDiv = document.getElementById('analytics-machines-statuses');
+            machineStatusesDiv.innerHTML = '';
+
+            if (machineTotal === 0) {
+                machineStatusesDiv.innerHTML = '<div class="analytics-status-item"><span class="analytics-status-label" style="font-style: italic; color: #888;">No machines</span></div>';
+            } else {
+                // Sort statuses by count (descending)
+                const sortedMachineStatuses = Object.entries(machineCounts).sort((a, b) => b[1] - a[1]);
+                sortedMachineStatuses.forEach(([status, count]) => {
+                    const item = document.createElement('div');
+                    item.className = 'analytics-status-item';
+                    item.innerHTML = `
+                        <span class="analytics-status-label">${status}</span>
+                        <span class="analytics-status-value">${count}</span>
+                    `;
+                    machineStatusesDiv.appendChild(item);
+                });
+            }
+
+        } catch (error) {
+            console.error('Error calculating analytics:', error);
+        }
+    }
+
+
+    // Auto-scroll to bottom of the units list
+    const contentWrapper = document.querySelector('.units-content-wrapper');
+    if (contentWrapper) {
+        contentWrapper.scrollTop = contentWrapper.scrollHeight;
+    }
+
+    // Load and render timeline chart
+    let timelineChart = null;
+
+    async function loadTimelineChart() {
+        try {
+            const response = await fetch(`/api/timeline/${ORDER_KEY}`);
+            if (!response.ok) {
+                console.error('Failed to load timeline data');
+                return;
+            }
+
+            const timeline = await response.json();
+
+            // Extract dates and sort them chronologically
+            const dates = Object.keys(timeline).sort();
+
+            if (dates.length === 0) {
+                console.warn('No timeline data available');
+                return;
+            }
+
+            // Collect all unique statuses (excluding Total counts)
+            const statusSet = new Set();
+            dates.forEach(date => {
+                Object.keys(timeline[date]).forEach(status => {
+                    if (!status.startsWith('Total')) {
+                        statusSet.add(status);
+                    }
+                });
+            });
+            const statuses = Array.from(statusSet).sort();
+
+            // Generate a color for each status
+            const colors = [
+                '#bb86fc', '#03dac6', '#ff6b6b', '#4ecdc4', '#ffd93d',
+                '#95e1d3', '#f38181', '#aa96da', '#fcbad3', '#a8e6cf'
+            ];
+
+            // Create datasets for Chart.js
+            const datasets = statuses.map((status, index) => {
+                const data = dates.map(date => {
+                    const statusData = timeline[date][status];
+                    return statusData ? statusData.length : 0;
+                });
+
+                return {
+                    label: status,
+                    data: data,
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length] + '40', // Add transparency
+                    fill: false,
+                    tension: 0.1
+                };
+            });
+
+            // Add Total Units line
+            const totalData = dates.map(date => {
+                const totalUnits = timeline[date]['Total Units'];
+                return totalUnits ? totalUnits.length : 0;
+            });
+
+            datasets.push({
+                label: 'Total Units',
+                data: totalData,
+                borderColor: '#ffffff',
+                backgroundColor: '#ffffff40',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.1
+            });
+
+            // Render the chart
+            const ctx = document.getElementById('timeline-chart').getContext('2d');
+
+            if (timelineChart) {
+                timelineChart.destroy(); // Destroy existing chart if it exists
+            }
+
+            timelineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#e0e0e0',
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#a0a0a0'
+                            },
+                            grid: {
+                                color: '#404040'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#a0a0a0',
+                                stepSize: 1
+                            },
+                            grid: {
+                                color: '#404040'
+                            }
+                        }
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error('Error loading timeline chart:', error);
+        }
+    }
+
+    // Call loadTimelineChart after units are loaded
+    // (Add this to DOMContentLoaded or after loadRepairUnits completes)
 </script>
 {% endblock %}

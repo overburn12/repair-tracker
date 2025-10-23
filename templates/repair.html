@@ -528,27 +528,7 @@
             const result = await response.json();
 
             if (result.success) {
-                // If status was changed, log the status change event
-                if (fieldName === 'current_status_id') {
-                    const assignee = getSelectedAssignee();
-                    if (assignee.key) {
-                        // Get the status name from the dropdown
-                        const statusSelect = document.getElementById('meta-status');
-                        const statusName = statusSelect.options[statusSelect.selectedIndex].textContent;
-
-                        await fetch(`/api/add-status-event/${UNIT_KEY}`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                status_name: statusName,
-                                assignee_key: assignee.key
-                            })
-                        });
-                    }
-                }
-
+                // Status changes are now automatically logged by service.py
                 // Reload metadata to show updated data
                 await loadUnitMetadata();
             } else {

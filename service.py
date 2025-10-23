@@ -344,7 +344,13 @@ class DatabaseService:
         - type: str ('machine' or 'hashboard')
         - current_status_id: int
         - current_assignee_id: int or None
+
+        Note: Status changes are automatically logged to the event log.
         """
+        import json
+        import uuid
+        from datetime import datetime
+
         session = self.get_session()
         try:
             # Parse the key
@@ -360,6 +366,8 @@ class DatabaseService:
 
             # Track what was updated
             updates = []
+            status_changed = False
+            new_status_name = None
 
             # Update serial if provided
             if 'serial' in fields:
@@ -379,6 +387,12 @@ class DatabaseService:
                 status = session.query(Status).filter(Status.id == fields['current_status_id']).first()
                 if not status:
                     return {'success': False, 'message': f"Status ID {fields['current_status_id']} not found"}
+
+                # Check if status actually changed
+                if unit.current_status_id != fields['current_status_id']:
+                    status_changed = True
+                    new_status_name = status.status
+
                 unit.current_status_id = fields['current_status_id']
                 updates.append('status')
 
@@ -394,6 +408,37 @@ class DatabaseService:
 
             if not updates:
                 return {'success': False, 'message': 'No fields provided to update'}
+
+            # AUTOMATICALLY log status change to event log
+            if status_changed and unit.current_assignee_id:
+                # Get the assignee for the event log
+                assignee = session.query(Assignee).filter(Assignee.id == unit.current_assignee_id).first()
+
+                if assignee:
+                    # Parse existing events_json or create new structure
+                    if unit.events_json:
+                        try:
+                            events_data = json.loads(unit.events_json)
+                        except json.JSONDecodeError:
+                            events_data = {"events": []}
+                    else:
+                        events_data = {"events": []}
+
+                    # Create the status change event
+                    timestamp = datetime.now().isoformat()
+                    status_event = {
+                        "id": str(uuid.uuid4()),
+                        "type": "status",
+                        "assignee": assignee.name,
+                        "timestamp": timestamp,
+                        "status": new_status_name
+                    }
+
+                    # Append the event
+                    events_data['events'].append(status_event)
+
+                    # Update the repair unit's events_json
+                    unit.events_json = json.dumps(events_data)
 
             session.commit()
 
@@ -817,9 +862,9 @@ class DatabaseService:
                     'serial': ru.serial,
                     'type': ru.type.value if ru.type else None,
                     'current_status': ru.current_status.status if ru.current_status else None,
-                    'current_status_id': ru.current_status_id,
+                    'status_id': ru.current_status_id,
                     'current_assignee': ru.current_assignee.name if ru.current_assignee else None,
-                    'current_assignee_id': ru.current_assignee_id,
+                    'assignee_key': self._make_key('AS', ru.current_assignee_id) if ru.current_assignee_id else None,
                     'repair_order_key': self._make_key('RO', ru.repair_order_id),
                     'created': ru.created.isoformat() if ru.created else None,
                     'updated_at': ru.updated_at.isoformat() if ru.updated_at else None,
@@ -943,6 +988,198 @@ class DatabaseService:
             return {'success': False, 'message': f"Error adding repair unit: {str(e)}"}
         finally:
             session.close()
+
+    def get_status_events_by_order(self, order_key):
+        """Get all status change events for a repair order, grouped by serial number.
+
+        Args:
+            order_key: The repair order key (e.g., 'RO-123')
+
+        Returns:
+            List of dicts, each containing:
+            - serial: The serial number
+            - unit_key: The repair unit key
+            - events: List of status events in chronological order (oldest first)
+        """
+        import json
+        from datetime import datetime
+
+        session = self.get_session()
+        try:
+            # Parse the order key
+            prefix, order_id = self._parse_key(order_key)
+
+            if prefix != 'RO':
+                raise ValueError(f"Expected RO key, got: {order_key}")
+
+            # Get all repair units for this order
+            units = session.query(RepairUnit).filter(
+                RepairUnit.repair_order_id == order_id
+            ).all()
+
+            result = []
+
+            for unit in units:
+                # Parse events_json to extract status events
+                status_events = []
+
+                if unit.events_json:
+                    try:
+                        events_data = json.loads(unit.events_json)
+                        all_events = events_data.get('events', [])
+
+                        # Filter for status events only
+                        for event in all_events:
+                            if event.get('type') == 'status':
+                                status_events.append({
+                                    'timestamp': event.get('timestamp'),
+                                    'status': event.get('status'),
+                                    'assignee': event.get('assignee')
+                                })
+
+                    except json.JSONDecodeError:
+                        # Skip units with invalid JSON
+                        pass
+
+                # Sort events chronologically (oldest first)
+                status_events.sort(key=lambda x: datetime.fromisoformat(x['timestamp']) if x['timestamp'] else datetime.min)
+
+                # Add to result (even if no status events, to show all units)
+                result.append({
+                    'serial': unit.serial,
+                    'unit_key': self._make_key('RU', unit.id),
+                    'type': unit.type.value if unit.type else None,
+                    'events': status_events
+                })
+
+            # Sort by serial number for consistent ordering
+            result.sort(key=lambda x: x['serial'])
+
+            return result
+
+        finally:
+            session.close()
+
+    def build_repair_order_timeline(self, order_key):
+        """Build a timeline showing status counts for each day of a repair order.
+
+        Similar to build_and_fill_epic_timeline from the Jira system.
+        Creates a day-by-day view of how many units are in each status.
+
+        Args:
+            order_key: The repair order key (e.g., 'RO-123')
+
+        Returns:
+            Dict with dates as keys and status counts as values:
+            {
+                "2025-01-15": {
+                    "Backlog": [{serial, type, assignee}, ...],
+                    "In Progress": [...],
+                    "Done": [...],
+                    "Total Units": [...],
+                    "Total Hashboards": [...],
+                    "Total Machines": [...]
+                }
+            }
+        """
+        from datetime import datetime, timedelta, date
+        import json
+
+        # Get status events for all units in this order
+        status_events_data = self.get_status_events_by_order(order_key)
+
+        if not status_events_data:
+            return {}
+
+        # Helper function to generate date range
+        def date_range(start_date, end_date):
+            """Generate all dates between start and end (inclusive)"""
+            current = start_date
+            while current <= end_date:
+                yield current
+                current += timedelta(days=1)
+
+        # Find start and end dates
+        all_timestamps = []
+        for unit_data in status_events_data:
+            if unit_data['events']:
+                for event in unit_data['events']:
+                    timestamp_str = event['timestamp']
+                    timestamp = datetime.fromisoformat(timestamp_str)
+                    all_timestamps.append(timestamp.date())
+
+        if not all_timestamps:
+            return {}
+
+        start_date = min(all_timestamps)
+        end_date = max(all_timestamps)
+
+        # Initialize timeline structure
+        timeline = {}
+        for day in date_range(start_date, end_date):
+            timeline[day] = {}
+
+        # For each unit, build its individual timeline
+        for unit_data in status_events_data:
+            serial = unit_data['serial']
+            unit_type = unit_data['type']
+            unit_key = unit_data['unit_key']
+
+            # Build timeline for this unit
+            unit_timeline = {}
+            for day in date_range(start_date, end_date):
+                unit_timeline[day] = None
+
+            # Fill in status changes
+            for event in unit_data['events']:
+                timestamp = datetime.fromisoformat(event['timestamp'])
+                event_date = timestamp.date()
+                if event_date in unit_timeline:
+                    unit_timeline[event_date] = event['status']
+
+            # Forward-fill: carry status forward to subsequent days
+            last_status = None
+            for day in sorted(unit_timeline.keys()):
+                if unit_timeline[day] is None:
+                    unit_timeline[day] = last_status
+                else:
+                    last_status = unit_timeline[day]
+
+            # Add this unit's timeline to the aggregate timeline
+            for day in unit_timeline:
+                if day in timeline:
+                    status = unit_timeline[day]
+                    unit_obj = {
+                        'serial': serial,
+                        'type': unit_type,
+                        'unit_key': unit_key,
+                        'assignee': unit_data['events'][-1]['assignee'] if unit_data['events'] else None
+                    }
+
+                    # Add to status-specific list
+                    if status:
+                        if status not in timeline[day]:
+                            timeline[day][status] = []
+                        timeline[day][status].append(unit_obj)
+
+                    # Add to totals
+                    if 'Total Units' not in timeline[day]:
+                        timeline[day]['Total Units'] = []
+                    timeline[day]['Total Units'].append(unit_obj)
+
+                    if unit_type == 'hashboard':
+                        if 'Total Hashboards' not in timeline[day]:
+                            timeline[day]['Total Hashboards'] = []
+                        timeline[day]['Total Hashboards'].append(unit_obj)
+                    elif unit_type == 'machine':
+                        if 'Total Machines' not in timeline[day]:
+                            timeline[day]['Total Machines'] = []
+                        timeline[day]['Total Machines'].append(unit_obj)
+
+        # Convert date keys to ISO format strings for JSON serialization
+        timeline_str_keys = {day.isoformat(): data for day, data in timeline.items()}
+
+        return timeline_str_keys
 
 
 # Global instance

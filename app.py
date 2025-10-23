@@ -226,6 +226,49 @@ def api_delete_repair_order(order_key):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@app.route('/api/status-events/<order_key>', methods=['GET'])
+def api_get_status_events_by_order(order_key):
+    """Get all status change events for a repair order, grouped by serial number.
+
+    Returns a list where each item contains:
+    - serial: The serial number
+    - unit_key: The repair unit key
+    - type: Unit type (machine/hashboard)
+    - events: List of status events in chronological order (oldest first)
+    """
+    try:
+        result = db_service.get_status_events_by_order(order_key)
+        return jsonify(result), 200
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/timeline/<order_key>', methods=['GET'])
+def api_get_repair_order_timeline(order_key):
+    """Get timeline data for a repair order showing status counts for each day.
+
+    Returns a dict with dates as keys and status data as values:
+    {
+        "2025-01-15": {
+            "Backlog": [{serial, type, assignee}, ...],
+            "In Progress": [...],
+            "Total Units": [...],
+            "Total Hashboards": [...],
+            "Total Machines": [...]
+        }
+    }
+    """
+    try:
+        result = db_service.build_repair_order_timeline(order_key)
+        return jsonify(result), 200
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/repair-units/<order_key>', methods=['GET'])
 def api_get_repair_units(order_key):
     """Get all repair units for a given repair order key (e.g., 'RO-123')."""
